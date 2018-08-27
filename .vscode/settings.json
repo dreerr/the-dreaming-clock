@@ -1,0 +1,15 @@
+{
+  "terminal.integrated.env.osx": {
+    "PATH": "/Users/julian/.platformio/penv/bin:/Users/julian/.platformio/penv:/Users/julian/.rvm/gems/ruby-2.1.0/bin:/Users/julian/.rvm/gems/ruby-2.1.0@global/bin:/Users/julian/.rvm/rubies/ruby-2.1.0/bin:/usr/local/sbin:/Users/julian/.composer/vendor/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/Applications/VMware Fusion.app/Contents/Public:/usr/local/MacGPG2/bin:/opt/X11/bin:/Applications/Wireshark.app/Contents/MacOS:/Users/julian/.rvm/bin",
+    "PLATFORMIO_CALLER": "vscode"
+  },
+  "files.associations": {
+    "ostream": "cpp",
+    "array": "cpp",
+    "deque": "cpp",
+    "list": "cpp",
+    "unordered_map": "cpp",
+    "vector": "cpp",
+    "initializer_list": "cpp"
+  }
+}
