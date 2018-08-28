@@ -41,8 +41,8 @@ void setup() {
   setupLEDs();
   DEBUG.printf("Setup Webserver\n");
   setupWebserver();
-  DEBUG.printf("Setup Sensor\n");
-  setupSensor();
+  //DEBUG.printf("Setup Sensor\n");
+  //setupSensor();
   // DEBUG.printf("Setup Websocket\n");
   // setupWebsocket();
 
@@ -57,9 +57,5 @@ void loop() {
 
   loopOTA(); // Don't delete!
   loopWifi(); // Don't delete!
-  //loopWebserver();
-  // loopWebsocket();
   loopLEDs();
-  loopSensor();
-  // controll.run();
-}
+  }

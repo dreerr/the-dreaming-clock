@@ -49,7 +49,7 @@ void setupWebserver() {
   server.on("/wakeup", HTTP_POST, wakeupPost);
   server.serveStatic("/", SPIFFS, "/").setDefaultFile("index.html");
   server.onNotFound([](AsyncWebServerRequest *request) {
-    request->send(404);
+    request->redirect(HTTPHOST);
   });
   server.begin();
   MDNS.addService("http", "tcp", 80);

@@ -15,6 +15,7 @@
 #include <Arduino.h>
 #include <Wire.h>
 #include "BMA280.h"
+#include "definitions.h"
 
 #define myLed 13   // board led
 #define intPin1 4  // interrupt1 pin definitions
@@ -57,8 +58,8 @@ void setupSensor() {
   //digitalWrite(myLed, LOW);  // active HIGH
 
   //Serial.begin(115200);
-  delay(4000);
-  Wire.begin();  // set master mode, on Ladybug uses pins 20/21 by default
+  // Gelb Clock, Gruen
+  Wire.begin(6,8);  // set master mode, on Ladybug uses pins 20/21 by default
   Wire.setClock(400000);  // I2C frequency at 400 kHz
   delay(1000);
 
