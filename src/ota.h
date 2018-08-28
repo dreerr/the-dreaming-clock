@@ -3,11 +3,10 @@
 #include <ArduinoOTA.h>
 
 void setupOTA() {
+  DEBUG.printf("Setup OTA\n");
   ArduinoOTA.setHostname(HOSTNAME);
   ArduinoOTA.setPassword((const char *)"kei6yahghohngooS");
   MDNS.addService("ota", "tcp", 8266);
-
-
   ArduinoOTA.onStart([]() {
     Serial.println("OTA Start\n");
   });

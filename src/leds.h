@@ -71,10 +71,8 @@ void goSleep() {
   }
 }
 
-
-// MAIN FUNCTION
-
 void setupLEDs() {
+  DEBUG.printf("Setup LEDs");
   int length = 10;
   for (int i = 0; i < 7 * 4; i++) {
     int start = i * length;

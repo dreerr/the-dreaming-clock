@@ -2,22 +2,15 @@
 #include <DNSServer.h>
 #include <ESP8266WiFiMulti.h>
 //#include <WiFiManager.h>
-
-#define USE_CAPTIVE true
-
 const byte DNS_PORT = 53;
 IPAddress apIP(192, 168, 4, 1);
-
 ESP8266WiFiMulti WiFiMulti;
-
 DNSServer dnsServer;
 
 void setupWifi() {
-
+  DEBUG.printf("Setup Wifi\n");
   // WiFiManager wifiManager;
   // wifiManager.autoConnect("AutoConnectAP");
-
-
   if(USE_CAPTIVE) {
     WiFi.mode(WIFI_AP);
     WiFi.softAPConfig(apIP, apIP, IPAddress(255, 255, 255, 0));

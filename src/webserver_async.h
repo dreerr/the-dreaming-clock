@@ -42,6 +42,7 @@ void wakeupPost(AsyncWebServerRequest *request) {
 }
 
 void setupWebserver() {
+  DEBUG.printf("Setup Webserver\n");
   SPIFFS.begin();
   server.on("/", HTTP_GET, indexGet);
   server.on("/adjust", HTTP_GET, adjustGet);
