@@ -13,7 +13,7 @@
 #define CLOCK_PIN 7
 
 CRGB leds[NUM_LEDS];
-Timer t;
+Timer timer;
 int8_t randomChangeEvent = -1;
 int8_t sleepAgainEvent = -1;
 Segment segs[7*4];
@@ -90,7 +90,7 @@ void setupLEDs() {
       .setCorrection(TypicalLEDStrip);
   // FastLED.setMaxPowerInMilliWatts(1000);
   FastLED.showColor(CRGB::Black);
-  //randomChangeEvent = t.every(3000, randomness);
+  //randomChangeEvent = timer.every(3000, randomness);
 }
 
 void loopLEDs() {
@@ -113,9 +113,9 @@ void loopLEDs() {
   }
   if (wakeup && !awake) {  // happens once
     if (sleepAgainEvent >= 0) {
-      t.stop(sleepAgainEvent);
+      timer.stop(sleepAgainEvent);
     }
-    sleepAgainEvent = t.after(7000, goSleep);
+    sleepAgainEvent = timer.after(7000, goSleep);
     awake = true;
     wakeup = false;
     showCurrentTime();
@@ -127,7 +127,7 @@ void loopLEDs() {
   if(awake) { // repeat for x seconds
     showCurrentTime();
   }
-  t.update();
+  timer.update();
   for(int i = 0; i < 7*4; i++) {
     segs[i].draw();
   }
