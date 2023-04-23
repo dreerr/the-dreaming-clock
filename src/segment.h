@@ -19,6 +19,7 @@ private:
   CRGB *current;
   CRGB *target;
   int blendAmount = 0;
+  unsigned long nextMillis = millis();
 
 public:
   int speed = 255;
@@ -27,18 +28,17 @@ public:
   SegmentMode mode = RANDOM;
   Segment() {}
   Segment(CRGB *leds, int start, int length)
-     : leds(leds), segStart(start), segLength(length) {
-   initialized = true;
-   current = new CRGB[segLength];
-   target = new CRGB[segLength];
-
+      : leds(leds), segStart(start), segLength(length) {
+    initialized = true;
+    current = new CRGB[segLength];
+    target = new CRGB[segLength];
   }
 
   void fillRandomGradient(CRGB *array, int numToFill) {
     mode = RANDOM;
     CHSV hsv_array[numToFill];
-    byte minB = max(0, opacity - gradientRange);
-    byte maxB = min(opacity + gradientRange, 255);
+    int minB = max(0, opacity - gradientRange);
+    int maxB = min(opacity + gradientRange, 255);
     CHSV colorStart = CHSV(random(255), 255, random(minB, maxB));
     CHSV colorMid = CHSV(random(255), 255, random(minB, maxB));
     CHSV colorEnd = CHSV(random(255), 255, random(minB, maxB));
@@ -48,6 +48,16 @@ public:
       array[i] = hsv_array[i];
     }
   }
+
+  void newSequence() {
+    // Reset Sequence and copy values from live leds
+    blendAmount = 0;
+    nextMillis = millis() + random(500, 20000);
+    for (int i = 0; i < segLength; i++) {
+      current[i] = leds[i + segStart];
+    }
+  }
+
   void fillColor(CRGB color, int newSpeed) {
     mode = COLOR;
     newSequence();
@@ -55,6 +65,9 @@ public:
     color.fadeToBlackBy(255 - opacity);
     for (int i = 0; i < segLength; i++) {
       target[i] = color;
+      if (speed == 255) {
+        current[i] = color;
+      }
     }
   }
 
@@ -67,10 +80,11 @@ public:
   }
 
   void animationFinished() {
-    if(mode == RANDOM) {
+    if (mode == RANDOM && nextMillis < millis()) {
       newSequence();
       speed = random(MIN_SPEED, MAX_SPEED);
       fillRandomGradient(target, segLength);
+      opacity = 0;
       if (random8(255) > 180) {
         opacity = (random8(255) > 120) ? 255 : 15;
       }
@@ -78,15 +92,16 @@ public:
   }
 
   void drawBlend() {
-    if (blendAmount == 255)
+    if (blendAmount == 255) {
       animationFinished();
+    }
     for (int i = 0; i < segLength; i++) {
       leds[i + segStart] =
           blend(current[i], target[i], quadwave8(blendAmount / 2));
+      // blend(current[i], target[i], blendAmount);
     }
     blendAmount = min(255, blendAmount + speed);
   }
-
 
   void draw() {
     if (initialized) {
