@@ -4,7 +4,8 @@ body {
   position: absolute;
   height: 100%;
   width: 100%;
-  background-image: linear-gradient(to right top, #d10009, #d1002f, #cb004a, #bd0062, #aa0076);
+  background-color: #f00;
+
   text-align: center;
   color: white;
   font-family: Arial;
@@ -14,12 +15,13 @@ body {
   position: relative;
   top: 50%;
   transform: translateY(-50%);
+  display: block;
 }
 form {
   display: inline-block;
 }
-input[type=number]::-webkit-inner-spin-button,
-input[type=number]::-webkit-outer-spin-button {
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
   -webkit-appearance: none;
   margin: 0;
 }
@@ -27,7 +29,6 @@ input[type=number]::-webkit-outer-spin-button {
   -webkit-appearance: none;
   -moz-appearance: textfield;
   appearance: textfield;
-
 }
 input {
   border: none;
@@ -43,7 +44,7 @@ input {
 }
 .submit {
   display: inline-block;
-  background-color:black;
+  background-color: black;
   color: white;
   border: none;
   text-align: center;
