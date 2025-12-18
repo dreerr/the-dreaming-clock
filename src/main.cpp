@@ -2,10 +2,10 @@
 #include <WiFi.h>
 
 #include "definitions.h"
-#include "rtc.h"
 #include "leds.h"
 #include "network.h"
 #include "ota.h"
+#include "rtc.h"
 #include "web.h"
 
 void setup() {
