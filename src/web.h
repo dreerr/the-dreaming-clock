@@ -8,7 +8,8 @@
 #include "definitions.h"
 
 // RTC time setting function from rtc.h
-extern void setRTCTime(int hours, int minutes, int seconds, int day, int month, int year);
+extern void setRTCTime(int hours, int minutes, int seconds, int day, int month,
+                       int year);
 
 AsyncWebServer server(80);
 
@@ -38,8 +39,8 @@ void setupWeb() {
   server.on("/adjust", HTTP_POST, [](AsyncWebServerRequest *request) {
     if (request->hasArg("hours") && request->hasArg("minutes")) {
       setRTCTime(request->arg("hours").toInt(), request->arg("minutes").toInt(),
-              0, request->arg("day").toInt(), request->arg("month").toInt(),
-              request->arg("yr").toInt());
+                 0, request->arg("day").toInt(), request->arg("month").toInt(),
+                 request->arg("yr").toInt());
       request->send(LittleFS, "/adjusted.html");
     } else {
       request->send(LittleFS, "/adjust.html");

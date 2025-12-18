@@ -9,7 +9,7 @@
 #include "segment.h"
 
 // RTC from rtc.h
-extern RTC_DS3231 rtc;
+extern RTC_DS1307 rtc;
 extern bool rtcInitialized;
 
 #define FRAMES_PER_SECOND 60
@@ -110,8 +110,8 @@ void loopLEDs() {
   } else {
     DateTime now = rtc.now();
     if (ONLY_OFFICE_HOURS &&
-        !(now.hour() > 8 && now.hour() < 18 &&
-          now.dayOfTheWeek() > 0 && now.dayOfTheWeek() < 6)) {
+        !(now.hour() > 8 && now.hour() < 18 && now.dayOfTheWeek() > 0 &&
+          now.dayOfTheWeek() < 6)) {
       // only display during 9-17 Mon-Fri (weekday: 0=Sun, 1=Mon, ... 6=Sat)
       FastLED.showColor(CRGB::Black);
       return;
