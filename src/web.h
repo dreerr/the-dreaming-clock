@@ -1,19 +1,21 @@
 #include <Arduino.h>
-#include <ESP8266mDNS.h>
-#include <ESPAsyncTCP.h>
+#include <AsyncTCP.h>
 #include <ESPAsyncWebServer.h>
+#include <ESPmDNS.h>
 #include <FS.h>
 #include <LittleFS.h>
-#include <Time.h>
 
 #include "definitions.h"
+
+// RTC time setting function from rtc.h
+extern void setRTCTime(int hours, int minutes, int seconds, int day, int month, int year);
 
 AsyncWebServer server(80);
 
 void setupWeb() {
-  DEBUG.println("Setup Web");
+  Serial.println("Setup Web");
   if (!LittleFS.begin()) {
-    DEBUG.println("An Error has occurred while mounting LittleFS");
+    Serial.println("An Error has occurred while mounting LittleFS");
     return;
   }
   MDNS.addService("http", "tcp", 80);
@@ -35,11 +37,10 @@ void setupWeb() {
   // POST /adjust
   server.on("/adjust", HTTP_POST, [](AsyncWebServerRequest *request) {
     if (request->hasArg("hours") && request->hasArg("minutes")) {
-      setTime(request->arg("hours").toInt(), request->arg("minutes").toInt(),
-              00, request->arg("day").toInt(), request->arg("month").toInt(),
+      setRTCTime(request->arg("hours").toInt(), request->arg("minutes").toInt(),
+              0, request->arg("day").toInt(), request->arg("month").toInt(),
               request->arg("yr").toInt());
       request->send(LittleFS, "/adjusted.html");
-      timeWasSet = true;
     } else {
       request->send(LittleFS, "/adjust.html");
     }

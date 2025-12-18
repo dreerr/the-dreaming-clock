@@ -1,20 +1,20 @@
 #include "definitions.h"
-#include <ESP8266WiFi.h>
-#include <ESP8266WiFiMulti.h>
-#include <ESP8266mDNS.h>
+#include <ESPmDNS.h>
+#include <WiFi.h>
+#include <WiFiMulti.h>
 
 #include <DNSServer.h>
 
 const int DNS_PORT = 53;
 IPAddress apIP(192, 168, 4, 1);
-ESP8266WiFiMulti WiFiMulti;
+WiFiMulti WiFiMulti;
 DNSServer dnsServer;
 
 void setupNetwork() {
-  DEBUG.println("Setup Network");
+  Serial.println("Setup Network");
 
   if (USE_CAPTIVE) {
-    DEBUG.println("Setup Network: Captive");
+    Serial.println("Setup Network: Captive");
     WiFi.mode(WIFI_AP);
     WiFi.softAPConfig(apIP, apIP, IPAddress(255, 255, 255, 0));
     WiFi.softAP(AP_SSID);
