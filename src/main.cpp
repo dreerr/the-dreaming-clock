@@ -1,24 +1,26 @@
 #include <Arduino.h>
-#include <ESP8266WiFi.h>
+#include <WiFi.h>
 
 #include "definitions.h"
+#include "rtc.h"
 #include "leds.h"
 #include "network.h"
 #include "ota.h"
 #include "web.h"
 
 void setup() {
-  DEBUG.begin(115200);
+  Serial.begin(115200);
   for (uint8_t t = 4; t > 0; t--) {
-    DEBUG.printf("BOOTING %d...\n", t);
-    DEBUG.flush();
+    Serial.printf("BOOTING %d...\n", t);
+    Serial.flush();
     delay(1000);
   }
+  setupRTC();
   setupNetwork();
   setupOTA();
   setupWeb();
   setupLEDs();
-  DEBUG.println("Setup finished!");
+  Serial.println("Setup finished!");
 }
 
 void loop() {

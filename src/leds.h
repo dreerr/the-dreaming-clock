@@ -1,16 +1,20 @@
 #pragma once
 #include <Arduino.h>
 #include <FastLED.h>
+#include <RTClib.h>
 #include <SPI.h>
-#include <TimeLib.h>
 #include <Timer.h>
 
 #include "definitions.h"
 #include "segment.h"
 
+// RTC from rtc.h
+extern RTC_DS3231 rtc;
+extern bool rtcInitialized;
+
 #define FRAMES_PER_SECOND 60
-#define DATA_PIN D5
-#define CLOCK_PIN D7
+#define DATA_PIN 6  // GPIO6 on ESP32-C3
+#define CLOCK_PIN 7 // GPIO7 on ESP32-C3
 #define NUM_LEDS 282
 
 CRGB leds[NUM_LEDS];
@@ -56,8 +60,9 @@ void setNumber(int value, int opacity) {
 
 void showCurrentTime() {
   // First set all digits to zero opacity, then set the time
+  DateTime now = rtc.now();
   setNumber(8888, 0);
-  setNumber(minute() + hour() * 100, 255);
+  setNumber(now.minute() + now.hour() * 100, 255);
   CRGB blinkingColon = ((millis() % 2000) > 1000) ? mainColor : CRGB(0, 0, 0);
   segments[28].fillColor(blinkingColon, 255);
 }
@@ -72,7 +77,7 @@ void goSleep() {
 }
 
 void setupLEDs() {
-  DEBUG.println("Setup LEDs");
+  Serial.println("Setup LEDs");
   int length = 10;
   for (int i = 0; i < 7 * 4; i++) {
     int start = i * length;
@@ -102,11 +107,15 @@ void loopLEDs() {
     for (int i = 0; i < 7 * 4 + 1; i++) {
       segments[i].fillColor(color, 255);
     }
-  } else if (ONLY_OFFICE_HOURS &&
-             !(hour() > 8 && hour() < 18 && weekday() > 1 && weekday() < 7)) {
-    // only display during 9-17 Mon-Fri
-    FastLED.showColor(CRGB::Black);
-    return;
+  } else {
+    DateTime now = rtc.now();
+    if (ONLY_OFFICE_HOURS &&
+        !(now.hour() > 8 && now.hour() < 18 &&
+          now.dayOfTheWeek() > 0 && now.dayOfTheWeek() < 6)) {
+      // only display during 9-17 Mon-Fri (weekday: 0=Sun, 1=Mon, ... 6=Sat)
+      FastLED.showColor(CRGB::Black);
+      return;
+    }
   }
 
   if (wakeup && !awake) {
