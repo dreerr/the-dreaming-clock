@@ -11,7 +11,6 @@
 #define FRAMES_PER_SECOND 60
 #define DATA_PIN D5
 #define CLOCK_PIN D7
-#define MAIN_COLOR CRGB(255, 0, 0)
 #define NUM_LEDS 282
 
 CRGB leds[NUM_LEDS];
@@ -19,6 +18,7 @@ Timer timer;
 int8_t randomChangeEvent = -1;
 int8_t sleepAgainEvent = -1;
 Segment segments[7 * 4 + 1];
+CHSV mainColor = CHSV(random(0, 255), 255, 255);
 bool awake = false;
 
 unsigned long lastMillis = millis();
@@ -58,7 +58,7 @@ void showCurrentTime() {
   // First set all digits to zero opacity, then set the time
   setNumber(8888, 0);
   setNumber(minute() + hour() * 100, 255);
-  CRGB blinkingColon = ((millis() % 2000) > 1000) ? MAIN_COLOR : CRGB(0, 0, 0);
+  CRGB blinkingColon = ((millis() % 2000) > 1000) ? mainColor : CRGB(0, 0, 0);
   segments[28].fillColor(blinkingColon, 255);
 }
 
@@ -72,11 +72,11 @@ void goSleep() {
 }
 
 void setupLEDs() {
-  DEBUG.printf("Setup LEDs\n");
+  DEBUG.println("Setup LEDs");
   int length = 10;
   for (int i = 0; i < 7 * 4; i++) {
     int start = i * length;
-    start = start > 130 ? start + 2 : start; // Jump over Colon
+    start = start >= 140 ? start + 2 : start; // Jump over Colon
     segments[i] = Segment(leds, start, length);
   }
   segments[28] = Segment(leds, 140, 2);
@@ -98,19 +98,19 @@ void loopLEDs() {
     // Time was not set, animate blinking 00:00
     setNumber(0000, 255);
     segments[28].opacity = 255;
-    CRGB color = ((millis() % 2000) > 1000) ? MAIN_COLOR : CRGB(0, 0, 0);
+    CRGB color = ((millis() % 2000) > 1000) ? mainColor : CRGB(0, 0, 0);
     for (int i = 0; i < 7 * 4 + 1; i++) {
       segments[i].fillColor(color, 255);
     }
-  } else if (ONLY_OFFICE_HOURS && !(hour() >= 9 && hour() <= 17 &&
-                                    weekday() >= 2 && weekday() <= 6)) {
-    // only display during working hours
+  } else if (ONLY_OFFICE_HOURS &&
+             !(hour() > 8 && hour() < 18 && weekday() > 1 && weekday() < 7)) {
+    // only display during 9-17 Mon-Fri
     FastLED.showColor(CRGB::Black);
     return;
   }
 
-  // waking up, happens once
   if (wakeup && !awake) {
+    // waking up, happens once
     if (sleepAgainEvent >= 0) {
       timer.stop(sleepAgainEvent);
     }
@@ -118,20 +118,23 @@ void loopLEDs() {
     awake = true;
     wakeup = false;
     showCurrentTime();
+    mainColor = CHSV(random(0, 255), 255, 255);
     for (int i = 0; i < 7 * 4; i++) {
-      segments[i].fillColor(MAIN_COLOR, 1);
+      segments[i].fillColor(mainColor, 1);
     }
     segments[28].opacity = 255;
-    segments[28].fillColor(MAIN_COLOR, 255);
+    segments[28].fillColor(mainColor, 255);
   }
 
-  if (awake) { // repeat for x seconds
+  if (awake) {
+    // repeat for x seconds
     showCurrentTime();
   }
+
+  // Draw & Update Routine
   for (int i = 0; i < 7 * 4 + 1; i++) {
     segments[i].draw();
   }
-
   timer.update();
   FastLED.show();
 }
