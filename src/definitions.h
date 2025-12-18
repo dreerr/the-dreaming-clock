@@ -6,7 +6,7 @@
 #define USE_CAPTIVE true
 #define HOUR_START 8
 #define HOUR_END 18
-#define ONLY_OFFICE_HOURS false
+#define ONLY_OFFICE_HOURS true
 
 bool wakeup = false;
-bool timeWasSet = true;
+bool timeWasSet = false;

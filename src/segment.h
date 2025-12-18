@@ -1,7 +1,7 @@
 #pragma once
 #define SEGMENT_LENGTH 10
 #define MIN_SPEED 1
-#define MAX_SPEED 6
+#define MAX_SPEED 4
 #include "definitions.h"
 #include <Arduino.h>
 #include <FastLED.h>
@@ -39,9 +39,12 @@ public:
     CHSV hsv_array[numToFill];
     int minB = max(0, opacity - gradientRange);
     int maxB = min(opacity + gradientRange, 255);
-    CHSV colorStart = CHSV(random(255), 255, random(minB, maxB));
-    CHSV colorMid = CHSV(random(255), 255, random(minB, maxB));
-    CHSV colorEnd = CHSV(random(255), 255, random(minB, maxB));
+    int hueDeviation = sin(2 * PI * millis() / 1000.0);
+    int hueMin = (millis() / 7803) % 255;
+    int hueMax = (millis() / 1000) % 255;
+    CHSV colorStart = CHSV(random(hueMin, hueMax), 255, random(minB, maxB));
+    CHSV colorMid = CHSV(random(hueMin, hueMax), 255, random(minB, maxB));
+    CHSV colorEnd = CHSV(random(hueMin, hueMax), 255, random(minB, maxB));
     fill_gradient(hsv_array, 0, colorStart, (numToFill / 2 - 1), colorMid);
     fill_gradient(hsv_array, numToFill / 2, colorMid, numToFill - 1, colorEnd);
     for (int i = 0; i < numToFill; i++) {
@@ -52,7 +55,7 @@ public:
   void newSequence() {
     // Reset Sequence and copy values from live leds
     blendAmount = 0;
-    nextMillis = millis() + random(500, 20000);
+    nextMillis = millis() + random(10000);
     for (int i = 0; i < segLength; i++) {
       current[i] = leds[i + segStart];
     }
@@ -71,23 +74,16 @@ public:
     }
   }
 
-  void newSequence() {
-    // Reset Sequence and copy values from live leds
-    blendAmount = 0;
-    for (int i = 0; i < segLength; i++) {
-      current[i] = leds[i + segStart];
-    }
-  }
-
   void animationFinished() {
     if (mode == RANDOM && nextMillis < millis()) {
       newSequence();
       speed = random(MIN_SPEED, MAX_SPEED);
-      fillRandomGradient(target, segLength);
-      opacity = 0;
-      if (random8(255) > 180) {
-        opacity = (random8(255) > 120) ? 255 : 15;
+      // gradientRange = random(0, 50);
+      // opacity = 0;
+      if (random8(255) > 200) {
+        opacity = (random8(255) > 120) ? 255 : 0;
       }
+      fillRandomGradient(target, segLength);
     }
   }
 
