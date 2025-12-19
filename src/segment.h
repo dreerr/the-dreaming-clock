@@ -2,7 +2,7 @@
 #define SEGMENT_LENGTH 10
 #define MIN_SPEED 1
 #define MAX_SPEED 4
-#include "definitions.h"
+
 #include <Arduino.h>
 #include <FastLED.h>
 #include <math.h>

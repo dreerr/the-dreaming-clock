@@ -9,8 +9,7 @@ dreamy-clock-esp32/
 ├── platformio.ini          # PlatformIO Konfiguration
 ├── src/                    # Quellcode
 │   ├── main.cpp            # Hauptprogramm (Setup & Loop)
-│   ├── definitions.h       # Globale Konstanten und Variablen
-│   ├── settings.h          # Persistierte Einstellungen (NVS)
+│   ├── settings.h          # Konstanten, globale Variablen & persistierte Einstellungen
 │   ├── rtc.h               # RTC-Modul (DS1307) Steuerung
 │   ├── leds.h              # LED-Anzeige & 7-Segment Logik
 │   ├── segment.h           # Segment-Klasse für Animationen
@@ -56,21 +55,25 @@ setup() → RTC → Settings → Network → OTA → Web → LEDs
 loop()  → Network → OTA → LEDs
 ```
 
-### definitions.h
-**Globale Konfiguration** - Enthält alle konfigurierbaren Konstanten:
+**Definiert globale Variablen:**
+- `wakeup` - Flag zum "Aufwecken" der Anzeige
+- `timeWasSet` - Ob die RTC-Zeit gesetzt wurde
+
+### settings.h
+**Konstanten, globale Variablen & persistierte Einstellungen** - Zentrale Konfigurationsdatei.
+
+**Globale Konstanten:**
 
 | Konstante | Wert | Beschreibung |
 |-----------|------|--------------|
 | `AP_SSID` | "the dreaming clock" | WiFi Access Point Name |
 | `HOSTNAME` | "the-dreaming-clock" | mDNS Hostname |
+| `HTTPHOST` | "http://the-dreaming-clock.local" | HTTP URL |
 | `USE_CAPTIVE` | true | Captive Portal aktivieren |
 
-**Globale Variablen:**
+**Globale Variablen (extern):**
 - `wakeup` - Flag zum "Aufwecken" der Anzeige
 - `timeWasSet` - Ob die RTC-Zeit gesetzt wurde
-
-### settings.h
-**Persistierte Einstellungen** - Verwaltet Einstellungen mit ESP32 Preferences (NVS).
 
 **Datenstrukturen:**
 ```cpp

@@ -1,12 +1,14 @@
+#include "settings.h"
 #include <Arduino.h>
-#include <WiFi.h>
 
-#include "definitions.h"
+// Globale Variablen (deklariert in settings.h)
+bool wakeup = false;
+bool timeWasSet = false;
+
 #include "leds.h"
 #include "network.h"
 #include "ota.h"
 #include "rtc.h"
-#include "settings.h"
 #include "web.h"
 
 void setup() {

@@ -6,7 +6,6 @@
 #include <FS.h>
 #include <LittleFS.h>
 
-#include "definitions.h"
 #include "settings.h"
 
 // RTC time setting function from rtc.h
