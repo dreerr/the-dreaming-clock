@@ -8,7 +8,10 @@
 #include <math.h>
 using namespace std;
 
-enum SegmentMode { RANDOM, COLOR };
+enum SegmentMode {
+  RANDOM,
+  COLOR,
+};
 
 class Segment {
 private:
