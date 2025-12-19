@@ -5,7 +5,6 @@
 #include <SPI.h>
 #include <Timer.h>
 
-#include "definitions.h"
 #include "segment.h"
 #include "settings.h"
 

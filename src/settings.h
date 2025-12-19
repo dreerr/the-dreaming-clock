@@ -2,6 +2,12 @@
 #include <Arduino.h>
 #include <Preferences.h>
 
+// ===== Globale Konstanten =====
+#define AP_SSID "the dreaming clock"
+#define HOSTNAME "the-dreaming-clock"
+#define HTTPHOST "http://the-dreaming-clock.local"
+#define USE_CAPTIVE true
+
 // Settings namespace for NVS storage
 #define SETTINGS_NAMESPACE "clock-settings"
 
@@ -132,3 +138,6 @@ bool isDisplayActiveTime(uint8_t weekday, uint8_t hour) {
 // Global variable definitions
 ClockSettings clockSettings;
 Preferences preferences;
+
+extern bool wakeup;
+extern bool timeWasSet;

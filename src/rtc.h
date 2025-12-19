@@ -3,8 +3,6 @@
 #include <RTClib.h>
 #include <Wire.h>
 
-#include "definitions.h"
-
 // RTC Module (DS1307)
 extern RTC_DS1307 rtc;
 extern bool rtcInitialized;

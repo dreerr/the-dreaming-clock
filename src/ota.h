@@ -1,4 +1,4 @@
-#include "definitions.h"
+
 #include <ArduinoOTA.h>
 #include <ESPmDNS.h>
 
