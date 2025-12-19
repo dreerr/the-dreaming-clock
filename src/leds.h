@@ -50,7 +50,7 @@ void scheduleAutoWakeup() {
 }
 
 /*
- * 7-Segment Anordnung einer Ziffer:
+ * 7-Segment layout of a digit:
  *
  *       ┌───5───┐
  *       │       │

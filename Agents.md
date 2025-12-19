@@ -1,42 +1,42 @@
-# The Dreaming Clock - Projektstruktur
+# The Dreaming Clock - Project Structure
 
-Eine ESP32-C3-basierte 7-Segment LED-Uhr mit Web-Interface, RTC-Modul und persistierten Einstellungen.
+An ESP32-C3-based 7-segment LED clock with web interface, RTC module, and persistent settings.
 
-## Übersicht
+## Overview
 
 ```
 dreamy-clock-esp32/
-├── platformio.ini          # PlatformIO Konfiguration
-├── src/                    # Quellcode
-│   ├── main.cpp            # Hauptprogramm (Setup & Loop)
-│   ├── settings.h          # Konstanten, globale Variablen & persistierte Einstellungen
-│   ├── rtc.h               # RTC-Modul (DS1307) Steuerung
-│   ├── leds.h              # LED-Anzeige & 7-Segment Logik
-│   ├── segment.h           # Segment-Klasse für Animationen
+├── platformio.ini          # PlatformIO configuration
+├── src/                    # Source code
+│   ├── main.cpp            # Main program (Setup & Loop)
+│   ├── settings.h          # Constants, global variables & persistent settings
+│   ├── rtc.h               # RTC module (DS1307) control
+│   ├── leds.h              # LED display & 7-segment logic
+│   ├── segment.h           # Segment class for animations
 │   ├── network.h           # WiFi & Captive Portal
 │   ├── ota.h               # Over-The-Air Updates
 │   └── web.h               # REST API Webserver
-├── data/                   # LittleFS Dateisystem (Web-Frontend)
-│   ├── index.html          # Startseite mit Wakeup-Button
-│   ├── settings.html       # Settings-Seite (Zeit, Active Hours, Wakeup Interval)
+├── data/                   # LittleFS filesystem (Web frontend)
+│   ├── index.html          # Homepage with wakeup button
+│   ├── settings.html       # Settings page (time, active hours, wakeup interval)
 │   ├── style.css           # Styling
-│   └── script.js           # (leer, JS ist inline in HTML)
-└── lib/                    # Private Libraries (leer)
+│   └── script.js           # (empty, JS is inline in HTML)
+└── lib/                    # Private libraries (empty)
 ```
 
 ---
 
 ## Hardware
 
-| Komponente | Beschreibung |
-|------------|--------------|
+| Component | Description |
+|-----------|-------------|
 | **MCU** | ESP32-C3-DevKitM-1 |
-| **LEDs** | 282x APA102 (Dotstar) in 7-Segment Anordnung |
-| **RTC** | DS1307 Echtzeituhr-Modul |
+| **LEDs** | 282x APA102 (Dotstar) in 7-segment arrangement |
+| **RTC** | DS1307 Real-Time Clock module |
 
-### Pin-Belegung
+### Pin Assignment
 
-| Funktion | GPIO |
+| Function | GPIO |
 |----------|------|
 | LED Data (APA102) | 6 |
 | LED Clock (APA102) | 7 |
@@ -45,149 +45,149 @@ dreamy-clock-esp32/
 
 ---
 
-## Module
+## Modules
 
 ### main.cpp
-**Einstiegspunkt** - Initialisiert alle Subsysteme und führt die Hauptschleife aus.
+**Entry point** - Initializes all subsystems and runs the main loop.
 
 ```
 setup() → RTC → Settings → Network → OTA → Web → LEDs
 loop()  → Network → OTA → LEDs
 ```
 
-**Definiert globale Variablen:**
-- `wakeup` - Flag zum "Aufwecken" der Anzeige
-- `timeWasSet` - Ob die RTC-Zeit gesetzt wurde
+**Defines global variables:**
+- `wakeup` - Flag to "wake up" the display
+- `timeWasSet` - Whether the RTC time has been set
 
 ### settings.h
-**Konstanten, globale Variablen & persistierte Einstellungen** - Zentrale Konfigurationsdatei.
+**Constants, global variables & persistent settings** - Central configuration file.
 
-**Globale Konstanten:**
+**Global Constants:**
 
-| Konstante | Wert | Beschreibung |
-|-----------|------|--------------|
-| `AP_SSID` | "the dreaming clock" | WiFi Access Point Name |
-| `HOSTNAME` | "the-dreaming-clock" | mDNS Hostname |
+| Constant | Value | Description |
+|----------|-------|-------------|
+| `AP_SSID` | "the dreaming clock" | WiFi Access Point name |
+| `HOSTNAME` | "the-dreaming-clock" | mDNS hostname |
 | `HTTPHOST` | "http://the-dreaming-clock.local" | HTTP URL |
-| `USE_CAPTIVE` | true | Captive Portal aktivieren |
+| `USE_CAPTIVE` | true | Enable Captive Portal |
 
-**Globale Variablen (extern):**
-- `wakeup` - Flag zum "Aufwecken" der Anzeige
-- `timeWasSet` - Ob die RTC-Zeit gesetzt wurde
+**Global Variables (extern):**
+- `wakeup` - Flag to "wake up" the display
+- `timeWasSet` - Whether the RTC time has been set
 
-**Datenstrukturen:**
+**Data Structures:**
 ```cpp
 struct DaySchedule {
-  bool enabled;      // Tag aktiv?
-  uint8_t startHour; // Startzeit (0-23)
-  uint8_t endHour;   // Endzeit (0-23)
+  bool enabled;      // Day active?
+  uint8_t startHour; // Start time (0-23)
+  uint8_t endHour;   // End time (0-23)
 };
 
 struct ClockSettings {
-  bool useActiveHours;    // Active Hours Feature aktiviert?
-  DaySchedule days[7];    // Zeitplan pro Wochentag (0=So, 1=Mo, ...)
-  int wakeupInterval;     // Auto-Wakeup in Minuten (0=aus)
+  bool useActiveHours;    // Active Hours feature enabled?
+  DaySchedule days[7];    // Schedule per weekday (0=Sun, 1=Mon, ...)
+  int wakeupInterval;     // Auto-wakeup in minutes (0=off)
 };
 ```
 
-| Funktion | Beschreibung |
-|----------|--------------|
-| `setupSettings()` | Lädt Einstellungen aus NVS |
-| `saveSettings()` | Speichert alle Einstellungen |
-| `saveActiveHours()` | Speichert nur Active Hours |
-| `saveWakeupInterval()` | Speichert nur Wakeup Interval |
-| `isDisplayActiveTime(hour, weekday)` | Prüft ob Display zur Zeit aktiv sein soll |
+| Function | Description |
+|----------|-------------|
+| `setupSettings()` | Loads settings from NVS |
+| `saveSettings()` | Saves all settings |
+| `saveActiveHours()` | Saves only Active Hours |
+| `saveWakeupInterval()` | Saves only Wakeup Interval |
+| `isDisplayActiveTime(hour, weekday)` | Checks if display should be active at this time |
 
-**Wakeup Intervalle:**
-- 0 = Aus
-- 5, 15, 30 = Minuten
-- 60, 120, 180, 240, 360 = Stunden (1-6h)
+**Wakeup Intervals:**
+- 0 = Off
+- 5, 15, 30 = Minutes
+- 60, 120, 180, 240, 360 = Hours (1-6h)
 
 ### rtc.h
-**Echtzeituhr** - Verwaltet das DS1307 RTC-Modul via I2C.
+**Real-Time Clock** - Manages the DS1307 RTC module via I2C.
 
-| Funktion | Beschreibung |
-|----------|--------------|
-| `setupRTC()` | Initialisiert I2C und prüft ob RTC läuft |
-| `setRTCTime(h, m, s, d, mo, y)` | Setzt Datum und Uhrzeit |
-| `rtc.now()` | Gibt aktuelles DateTime-Objekt zurück |
+| Function | Description |
+|----------|-------------|
+| `setupRTC()` | Initializes I2C and checks if RTC is running |
+| `setRTCTime(h, m, s, d, mo, y)` | Sets date and time |
+| `rtc.now()` | Returns current DateTime object |
 
 ### leds.h
-**LED-Steuerung** - Kernlogik für die 7-Segment Anzeige.
+**LED Control** - Core logic for the 7-segment display.
 
-**Struktur:**
-- 4 Ziffern × 7 Segmente = 28 Segmente
-- 1 Doppelpunkt = 1 Segment (Index 28)
-- Jedes Segment = 10 LEDs (Doppelpunkt = 2 LEDs)
+**Structure:**
+- 4 digits × 7 segments = 28 segments
+- 1 colon = 1 segment (index 28)
+- Each segment = 10 LEDs (colon = 2 LEDs)
 
-| Funktion | Beschreibung |
-|----------|--------------|
-| `setupLEDs()` | Initialisiert FastLED und Segmente, startet Auto-Wakeup |
-| `loopLEDs()` | Hauptschleife (60 FPS begrenzt) |
-| `setDigit(pos, value, opacity)` | Setzt eine Ziffer (0-9) |
-| `setNumber(value, opacity)` | Setzt 4-stellige Zahl |
-| `showCurrentTime()` | Zeigt aktuelle Uhrzeit an |
-| `goSleep()` | Wechselt in Random-Modus |
-| `scheduleAutoWakeup()` | Plant nächstes automatisches Aufwachen |
+| Function | Description |
+|----------|-------------|
+| `setupLEDs()` | Initializes FastLED and segments, starts auto-wakeup |
+| `loopLEDs()` | Main loop (limited to 60 FPS) |
+| `setDigit(pos, value, opacity)` | Sets a digit (0-9) |
+| `setNumber(value, opacity)` | Sets 4-digit number |
+| `showCurrentTime()` | Displays current time |
+| `goSleep()` | Switches to random mode |
+| `scheduleAutoWakeup()` | Schedules next automatic wakeup |
 
-**Verhalten:**
-1. **Zeit nicht gesetzt**: Blinkendes "00:00"
-2. **Außerhalb Active Hours**: Display aus (basierend auf Settings)
-3. **Wakeup-Modus**: Zeigt Zeit für 15 Sekunden, dann zurück zu Random
-4. **Random-Modus**: Zufällige Farbgradienten auf allen Segmenten
-5. **Auto-Wakeup**: Automatisches Aufwachen basierend auf Intervall-Setting
+**Behavior:**
+1. **Time not set**: Blinking "00:00"
+2. **Outside Active Hours**: Display off (based on settings)
+3. **Wakeup mode**: Shows time for 15 seconds, then back to random
+4. **Random mode**: Random color gradients on all segments
+5. **Auto-wakeup**: Automatic wakeup based on interval setting
 
 ### segment.h
-**Segment-Klasse** - Animationslogik für einzelne LED-Segmente.
+**Segment Class** - Animation logic for individual LED segments.
 
-| Eigenschaft | Beschreibung |
-|-------------|--------------|
-| `opacity` | Helligkeit (0-255) |
-| `speed` | Animationsgeschwindigkeit (1-4) |
-| `mode` | `RANDOM` oder `COLOR` |
+| Property | Description |
+|----------|-------------|
+| `opacity` | Brightness (0-255) |
+| `speed` | Animation speed (1-4) |
+| `mode` | `RANDOM` or `COLOR` |
 
-| Methode | Beschreibung |
-|---------|--------------|
-| `fillColor(color, speed)` | Füllt Segment mit Farbe |
-| `fillRandomGradient()` | Generiert zufälligen Farbverlauf |
-| `draw()` | Zeichnet aktuellen Frame (Blend-Animation) |
+| Method | Description |
+|--------|-------------|
+| `fillColor(color, speed)` | Fills segment with color |
+| `fillRandomGradient()` | Generates random color gradient |
+| `draw()` | Draws current frame (blend animation) |
 
-**Animation:** Sanftes Überblenden zwischen `current` und `target` Farben mittels `quadwave8()`.
+**Animation:** Smooth blending between `current` and `target` colors using `quadwave8()`.
 
 ### network.h
-**Netzwerk** - WiFi Access Point mit Captive Portal.
+**Network** - WiFi Access Point with Captive Portal.
 
-| Modus | Beschreibung |
-|-------|--------------|
-| **Captive** | Erstellt AP "the dreaming clock", leitet alle Anfragen um |
-| **Client** | Verbindet zu konfigurierten WiFi-Netzwerken |
+| Mode | Description |
+|------|-------------|
+| **Captive** | Creates AP "the dreaming clock", redirects all requests |
+| **Client** | Connects to configured WiFi networks |
 
 - IP: `192.168.4.1`
-- DNS-Server für Captive Portal
+- DNS server for Captive Portal
 - mDNS: `the-dreaming-clock.local`
 
 ### ota.h
-**Over-The-Air Updates** - Firmware-Updates via WiFi.
+**Over-The-Air Updates** - Firmware updates via WiFi.
 
 - Port: 3232
-- Passwort: `kei6yahghohngooS`
+- Password: `kei6yahghohngooS`
 - Upload via: `the-dreaming-clock.local`
 
 ### web.h
-**REST API Webserver** - Async HTTP Server auf Port 80 mit JSON Responses.
+**REST API Webserver** - Async HTTP server on port 80 with JSON responses.
 
-| Route | Methode | Beschreibung |
-|-------|---------|--------------|
+| Route | Method | Description |
+|-------|--------|-------------|
 | `/` | GET | index.html |
-| `/settings` | GET | Settings-Seite |
-| `/api/time` | GET | Aktuelle Zeit als JSON |
-| `/api/time` | POST | Zeit setzen (hours, minutes, day, month, year) |
-| `/api/active-hours` | GET | Active Hours Einstellungen als JSON |
-| `/api/active-hours` | POST | Active Hours speichern |
-| `/api/wakeup-interval` | GET | Wakeup Interval als JSON |
-| `/api/wakeup-interval` | POST | Wakeup Interval speichern |
-| `/wakeup` | POST | Manuelles Aufwecken |
-| `/*` | GET | Statische Dateien aus LittleFS |
+| `/settings` | GET | Settings page |
+| `/api/time` | GET | Current time as JSON |
+| `/api/time` | POST | Set time (hours, minutes, day, month, year) |
+| `/api/active-hours` | GET | Active Hours settings as JSON |
+| `/api/active-hours` | POST | Save Active Hours |
+| `/api/wakeup-interval` | GET | Wakeup Interval as JSON |
+| `/api/wakeup-interval` | POST | Save Wakeup Interval |
+| `/wakeup` | POST | Manual wakeup |
+| `/*` | GET | Static files from LittleFS |
 
 **API Response Format:**
 ```json
@@ -233,43 +233,43 @@ struct ClockSettings {
 
 ---
 
-## Web-Frontend
+## Web Frontend
 
 ### index.html
-Startseite mit großem SVG-Button (Wecker-Symbol) zum "Aufwecken" der Uhr.
-- Klick sendet POST an `/wakeup`
-- Link zu Settings-Seite (`/adjust`)
+Homepage with large SVG button (alarm clock symbol) to "wake up" the clock.
+- Click sends POST to `/wakeup`
+- Link to settings page (`/adjust`)
 
 ### settings.html
-Vollständige Settings-Seite mit AJAX-Speicherung:
+Complete settings page with AJAX saving:
 
-**Sektionen:**
-1. **Set Time** - Stunden, Minuten, Tag, Monat, Jahr
-2. **Active Hours** - Pro Wochentag (Mo-So) aktivierbar mit Start/End Zeit
-3. **Auto Wakeup Interval** - Dropdown mit 5/15/30 Min, 1-6 Stunden, Aus
-4. **Manual Wakeup** - Button zum sofortigen Aufwecken
+**Sections:**
+1. **Set Time** - Hours, minutes, day, month, year
+2. **Active Hours** - Per weekday (Mon-Sun) with start/end time
+3. **Auto Wakeup Interval** - Dropdown with 5/15/30 min, 1-6 hours, off
+4. **Manual Wakeup** - Button for immediate wakeup
 
 **Features:**
-- Jede Sektion lädt beim Seitenaufruf die aktuellen Werte
-- Jede Sektion hat eigenen Save-Button
-- Visuelles Feedback bei Erfolg (✓) oder Fehler (✗)
-- Alle Anfragen via `fetch()` API
+- Each section loads current values on page load
+- Each section has its own save button
+- Visual feedback on success (✓) or error (✗)
+- All requests via `fetch()` API
 
 ### style.css
-Modernes Dark-Theme mit:
-- Gradient Background
-- Card-basiertes Layout
-- Responsive Design
-- Animierte Buttons
-- Tabellen-Layout für Wochenplan
+Modern dark theme with:
+- Gradient background
+- Card-based layout
+- Responsive design
+- Animated buttons
+- Table layout for weekly schedule
 
 ---
 
-## Ablaufdiagramm
+## Flow Diagram
 
 ```
                     ┌─────────────┐
-                    │   BOOT      │
+                    │    BOOT     │
                     └──────┬──────┘
                            │
    ┌───────────────────────┼───────────────────────┐
@@ -295,9 +295,9 @@ Modernes Dark-Theme mit:
         ┌─────────────────┼─────────────────┐
         ▼                 ▼                 ▼
    ┌─────────┐      ┌─────────┐       ┌─────────┐
-   │ Zeit    │      │ Random  │       │ Wakeup  │
-   │ nicht   │      │ Modus   │       │ Modus   │
-   │ gesetzt │      │         │       │ (15s)   │
+   │  Time   │      │ Random  │       │ Wakeup  │
+   │  not    │      │  Mode   │       │  Mode   │
+   │  set    │      │         │       │ (15s)   │
    └─────────┘      └─────────┘       └─────────┘
                           │
                     ┌─────┴─────┐
@@ -310,13 +310,13 @@ Modernes Dark-Theme mit:
 
 ## Dependencies (platformio.ini)
 
-| Library | Version | Verwendung |
-|---------|---------|------------|
-| FastLED | ^3.9.0 | APA102 LED-Steuerung |
+| Library | Version | Usage |
+|---------|---------|-------|
+| FastLED | ^3.9.0 | APA102 LED control |
 | ESPAsyncWebServer | GitHub | Async HTTP Server |
-| AsyncTCP | GitHub | TCP für ESP32 |
-| RTClib | ^2.1.4 | DS1307 RTC Treiber |
-| ArduinoJson | ^7.0.0 | JSON Serialisierung für REST API |
+| AsyncTCP | GitHub | TCP for ESP32 |
+| RTClib | ^2.1.4 | DS1307 RTC driver |
+| ArduinoJson | ^7.0.0 | JSON serialization for REST API |
 
 ---
 
