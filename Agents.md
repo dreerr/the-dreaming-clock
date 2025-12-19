@@ -11,7 +11,10 @@ dreamy-clock-esp32/
 │   ├── main.cpp            # Main program (Setup & Loop)
 │   ├── settings.h          # Constants, global variables & persistent settings
 │   ├── rtc.h               # RTC module (DS1307) control
-│   ├── leds.h              # LED display & 7-segment logic
+│   ├── leds.h              # LED setup & main loop
+│   ├── display.h           # Display functions (setChar, setDigit, setNumber)
+│   ├── patterns.h          # 7-segment patterns for digits & letters
+│   ├── wakeup.h            # Wakeup/sleep logic & auto-wakeup timer
 │   ├── segment.h           # Segment class for animations
 │   ├── network.h           # WiFi & Captive Portal
 │   ├── ota.h               # Over-The-Air Updates
@@ -113,22 +116,25 @@ struct ClockSettings {
 | `rtc.now()` | Returns current DateTime object |
 
 ### leds.h
-**LED Control** - Core logic for the 7-segment display.
+**LED Control** - Main LED setup and loop, includes sub-modules.
 
-**Structure:**
-- 4 digits × 7 segments = 28 segments
-- 1 colon = 1 segment (index 28)
-- Each segment = 10 LEDs (colon = 2 LEDs)
+**Constants:**
+
+| Constant | Value | Description |
+|----------|-------|-------------|
+| `FRAMES_PER_SECOND` | 60 | Frame rate limit |
+| `DATA_PIN` | 6 | APA102 data GPIO |
+| `CLOCK_PIN` | 7 | APA102 clock GPIO |
+| `NUM_LEDS` | 282 | Total LED count |
+| `NUM_SEGMENTS` | 29 | 4 digits × 7 + colon |
+| `LEDS_PER_SEGMENT` | 10 | LEDs per digit segment |
+| `COLON_LEDS` | 2 | LEDs in colon |
+| `COLON_INDEX` | 28 | Segment index for colon |
 
 | Function | Description |
 |----------|-------------|
 | `setupLEDs()` | Initializes FastLED and segments, starts auto-wakeup |
 | `loopLEDs()` | Main loop (limited to 60 FPS) |
-| `setDigit(pos, value, opacity)` | Sets a digit (0-9) |
-| `setNumber(value, opacity)` | Sets 4-digit number |
-| `showCurrentTime()` | Displays current time |
-| `goSleep()` | Switches to random mode |
-| `scheduleAutoWakeup()` | Schedules next automatic wakeup |
 
 **Behavior:**
 1. **Time not set**: Blinking "00:00"
@@ -136,6 +142,56 @@ struct ClockSettings {
 3. **Wakeup mode**: Shows time for 15 seconds, then back to random
 4. **Random mode**: Random color gradients on all segments
 5. **Auto-wakeup**: Automatic wakeup based on interval setting
+
+### patterns.h
+**7-Segment Patterns** - Bit patterns for displaying digits and letters.
+
+**Layout:**
+```
+    ┌───5───┐
+    │       │
+    4       6
+    │       │
+    ├───3───┤
+    │       │
+    0       2
+    │       │
+    └───1───┘
+```
+
+| Data | Description |
+|------|-------------|
+| `segmentPatterns[]` | Bit patterns for 0-9 and A-Z |
+
+| Function | Description |
+|----------|-------------|
+| `getPatternIndex(char)` | Returns pattern index for a character |
+
+### display.h
+**Display Functions** - High-level functions to show content on the display.
+
+| Function | Description |
+|----------|-------------|
+| `setChar(pos, char, opacity)` | Sets a character (0-9, A-Z) at position |
+| `setDigit(pos, value, opacity)` | Sets a digit (0-9) at position |
+| `setNumber(value, opacity)` | Sets 4-digit number |
+| `showCurrentTime()` | Displays current time with blinking colon |
+
+### wakeup.h
+**Wakeup/Sleep Logic** - Controls display wakeup and sleep states.
+
+**Constants:**
+
+| Constant | Value | Description |
+|----------|-------|-------------|
+| `WAKEUP_DURATION_MS` | 15000 | Time display stays on after wakeup |
+
+| Function | Description |
+|----------|-------------|
+| `goSleep()` | Switches display back to random mode |
+| `triggerAutoWakeup()` | Triggers a wakeup event |
+| `scheduleAutoWakeup()` | Schedules next automatic wakeup |
+| `startSleepTimer()` | Starts timer to go back to sleep |
 
 ### segment.h
 **Segment Class** - Animation logic for individual LED segments.

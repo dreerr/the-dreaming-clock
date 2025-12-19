@@ -142,7 +142,10 @@ dreamy-clock-esp32/
 │   ├── main.cpp        # Entry point
 │   ├── settings.h      # Configuration & NVS persistence
 │   ├── rtc.h           # RTC module control
-│   ├── leds.h          # LED display logic
+│   ├── leds.h          # LED setup & main loop
+│   ├── display.h       # Display functions (setChar, setDigit, etc.)
+│   ├── patterns.h      # 7-segment patterns for digits & letters
+│   ├── wakeup.h        # Wakeup/sleep logic & auto-wakeup timer
 │   ├── segment.h       # Segment animation class
 │   ├── network.h       # WiFi & Captive Portal
 │   ├── ota.h           # OTA update handling
