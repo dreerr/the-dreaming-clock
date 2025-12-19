@@ -19,7 +19,7 @@ dreamy-clock-esp32/
 │   └── web.h               # REST API Webserver
 ├── data/                   # LittleFS Dateisystem (Web-Frontend)
 │   ├── index.html          # Startseite mit Wakeup-Button
-│   ├── adjust.html         # Settings-Seite (Zeit, Active Hours, Wakeup Interval)
+│   ├── settings.html       # Settings-Seite (Zeit, Active Hours, Wakeup Interval)
 │   ├── style.css           # Styling
 │   └── script.js           # (leer, JS ist inline in HTML)
 └── lib/                    # Private Libraries (leer)
@@ -176,7 +176,7 @@ struct ClockSettings {
 | Route | Methode | Beschreibung |
 |-------|---------|--------------|
 | `/` | GET | index.html |
-| `/adjust` | GET | Settings-Seite |
+| `/settings` | GET | Settings-Seite |
 | `/api/time` | GET | Aktuelle Zeit als JSON |
 | `/api/time` | POST | Zeit setzen (hours, minutes, day, month, year) |
 | `/api/active-hours` | GET | Active Hours Einstellungen als JSON |
@@ -237,7 +237,7 @@ Startseite mit großem SVG-Button (Wecker-Symbol) zum "Aufwecken" der Uhr.
 - Klick sendet POST an `/wakeup`
 - Link zu Settings-Seite (`/adjust`)
 
-### adjust.html
+### settings.html
 Vollständige Settings-Seite mit AJAX-Speicherung:
 
 **Sektionen:**

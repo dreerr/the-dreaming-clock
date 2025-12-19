@@ -43,14 +43,9 @@ void setupWeb() {
     request->send(LittleFS, "/index.html");
   });
 
-  // GET /adjust - Settings page
-  server.on("/adjust", HTTP_GET, [](AsyncWebServerRequest *request) {
-    request->send(LittleFS, "/adjust.html");
-  });
-
-  // GET /settings - Settings page (alias for /adjust)
+  // GET /settings - Settings page
   server.on("/settings", HTTP_GET, [](AsyncWebServerRequest *request) {
-    request->send(LittleFS, "/adjust.html");
+    request->send(LittleFS, "/settings.html");
   });
 
   // ===== API ENDPOINTS =====
