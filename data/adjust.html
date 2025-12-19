@@ -3,60 +3,215 @@
   <head>
     <meta charset="utf-8" />
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
-    <title>Adjust</title>
+    <title>Clock Settings</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
-    <form action="/adjust" method="POST" class="center">
-      <input
-        type="number"
-        class="numbers"
-        name="hours"
-        placeholder="00"
-        max="23"
-        min="0"
-      />
-      <span class="divider">:</span>
-      <input
-        type="number"
-        class="numbers"
-        name="minutes"
-        placeholder="00"
-        max="59"
-        min="0"
-      />
-      <br />
-      <br />
-      <input
-        type="number"
-        class="numbers"
-        name="day"
-        placeholder="01"
-        max="31"
-        min="1"
-      />
-      <span class="divider">.</span>
-      <input
-        type="number"
-        class="numbers"
-        name="month"
-        placeholder="01"
-        max="12"
-        min="1"
-      />
-      <span class="divider">.</span>
-      <input
-        type="number"
-        class="numbers"
-        name="yr"
-        placeholder="2000"
-        min="1970"
-        max="9999"
-      />
-      <br />
-      <br />
-      <input class="submit" type="submit" name="Submit" value="SET" />
-    </form>
+    <div class="container">
+      <h1>⏰ Clock Settings</h1>
+
+      <!-- Time Setting -->
+      <section class="card">
+        <h2>Set Time</h2>
+        <div class="form-row">
+          <input type="number" id="hours" placeholder="HH" max="23" min="0" class="numbers" />
+          <span class="divider">:</span>
+          <input type="number" id="minutes" placeholder="MM" max="59" min="0" class="numbers" />
+        </div>
+        <div class="form-row">
+          <input type="number" id="day" placeholder="DD" max="31" min="1" class="numbers small" />
+          <span class="divider">.</span>
+          <input type="number" id="month" placeholder="MM" max="12" min="1" class="numbers small" />
+          <span class="divider">.</span>
+          <input type="number" id="year" placeholder="YYYY" min="2020" max="2099" class="numbers" />
+        </div>
+        <button class="btn" onclick="saveTime()">Save Time</button>
+        <span id="time-status" class="status"></span>
+      </section>
+
+      <!-- Active Hours Setting -->
+      <section class="card">
+        <h2>Active Hours</h2>
+        <div class="form-row">
+          <label class="toggle">
+            <input type="checkbox" id="activeHoursEnabled" onchange="toggleActiveHours()" />
+            <span>Enable Active Hours</span>
+          </label>
+        </div>
+        <div id="activeHoursConfig">
+          <table class="schedule-table">
+            <thead>
+              <tr>
+                <th>Day</th>
+                <th>Active</th>
+                <th>Start</th>
+                <th>End</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr data-day="1"><td>Monday</td><td><input type="checkbox" class="day-enabled" /></td><td><input type="number" class="day-start" min="0" max="23" value="8" /></td><td><input type="number" class="day-end" min="0" max="23" value="18" /></td></tr>
+              <tr data-day="2"><td>Tuesday</td><td><input type="checkbox" class="day-enabled" /></td><td><input type="number" class="day-start" min="0" max="23" value="8" /></td><td><input type="number" class="day-end" min="0" max="23" value="18" /></td></tr>
+              <tr data-day="3"><td>Wednesday</td><td><input type="checkbox" class="day-enabled" /></td><td><input type="number" class="day-start" min="0" max="23" value="8" /></td><td><input type="number" class="day-end" min="0" max="23" value="18" /></td></tr>
+              <tr data-day="4"><td>Thursday</td><td><input type="checkbox" class="day-enabled" /></td><td><input type="number" class="day-start" min="0" max="23" value="8" /></td><td><input type="number" class="day-end" min="0" max="23" value="18" /></td></tr>
+              <tr data-day="5"><td>Friday</td><td><input type="checkbox" class="day-enabled" /></td><td><input type="number" class="day-start" min="0" max="23" value="8" /></td><td><input type="number" class="day-end" min="0" max="23" value="18" /></td></tr>
+              <tr data-day="6"><td>Saturday</td><td><input type="checkbox" class="day-enabled" /></td><td><input type="number" class="day-start" min="0" max="23" value="8" /></td><td><input type="number" class="day-end" min="0" max="23" value="18" /></td></tr>
+              <tr data-day="0"><td>Sunday</td><td><input type="checkbox" class="day-enabled" /></td><td><input type="number" class="day-start" min="0" max="23" value="8" /></td><td><input type="number" class="day-end" min="0" max="23" value="18" /></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <button class="btn" onclick="saveActiveHours()">Save Active Hours</button>
+        <span id="active-status" class="status"></span>
+      </section>
+
+      <!-- Wakeup Interval Setting -->
+      <section class="card">
+        <h2>Auto Wakeup Interval</h2>
+        <p class="hint">How often the clock shows the time automatically</p>
+        <select id="wakeupInterval" class="select">
+          <option value="0">Off</option>
+          <option value="5">Every 5 minutes</option>
+          <option value="15">Every 15 minutes</option>
+          <option value="30">Every 30 minutes</option>
+          <option value="60">Every hour</option>
+          <option value="120">Every 2 hours</option>
+          <option value="180">Every 3 hours</option>
+          <option value="240">Every 4 hours</option>
+          <option value="360">Every 6 hours</option>
+        </select>
+        <button class="btn" onclick="saveWakeupInterval()">Save Interval</button>
+        <span id="wakeup-status" class="status"></span>
+      </section>
+
+      <!-- Manual Wakeup -->
+      <section class="card">
+        <h2>Manual Wakeup</h2>
+        <button class="btn btn-large" onclick="triggerWakeup()">🔔 Wake Up Now</button>
+        <span id="manual-status" class="status"></span>
+      </section>
+
+      <a href="/" class="link">← Back to Home</a>
+    </div>
+
+    <script>
+      // Load all settings on page load
+      document.addEventListener('DOMContentLoaded', function() {
+        loadTime();
+        loadActiveHours();
+        loadWakeupInterval();
+      });
+
+      function showStatus(elementId, success, message) {
+        const el = document.getElementById(elementId);
+        el.textContent = message;
+        el.className = 'status ' + (success ? 'success' : 'error');
+        setTimeout(() => { el.textContent = ''; el.className = 'status'; }, 3000);
+      }
+
+      // Time functions
+      function loadTime() {
+        fetch('/api/time')
+          .then(r => r.json())
+          .then(data => {
+            if (data.success) {
+              document.getElementById('hours').value = data.hours;
+              document.getElementById('minutes').value = data.minutes;
+              document.getElementById('day').value = data.day;
+              document.getElementById('month').value = data.month;
+              document.getElementById('year').value = data.year;
+            }
+          })
+          .catch(e => console.error('Error loading time:', e));
+      }
+
+      function saveTime() {
+        const params = new URLSearchParams({
+          hours: document.getElementById('hours').value,
+          minutes: document.getElementById('minutes').value,
+          day: document.getElementById('day').value,
+          month: document.getElementById('month').value,
+          year: document.getElementById('year').value
+        });
+        fetch('/api/time', { method: 'POST', body: params })
+          .then(r => r.json())
+          .then(data => showStatus('time-status', data.success, data.message || (data.success ? '✓ Saved' : '✗ Failed')))
+          .catch(e => showStatus('time-status', false, '✗ Error'));
+      }
+
+      // Active Hours functions
+      function loadActiveHours() {
+        fetch('/api/active-hours')
+          .then(r => r.json())
+          .then(data => {
+            if (data.success) {
+              document.getElementById('activeHoursEnabled').checked = data.enabled;
+              toggleActiveHours();
+
+              data.days.forEach((day, index) => {
+                const row = document.querySelector(`tr[data-day="${index}"]`);
+                if (row) {
+                  row.querySelector('.day-enabled').checked = day.enabled;
+                  row.querySelector('.day-start').value = day.start;
+                  row.querySelector('.day-end').value = day.end;
+                }
+              });
+            }
+          })
+          .catch(e => console.error('Error loading active hours:', e));
+      }
+
+      function toggleActiveHours() {
+        const enabled = document.getElementById('activeHoursEnabled').checked;
+        document.getElementById('activeHoursConfig').style.opacity = enabled ? '1' : '0.5';
+        document.getElementById('activeHoursConfig').style.pointerEvents = enabled ? 'auto' : 'none';
+      }
+
+      function saveActiveHours() {
+        const params = new URLSearchParams();
+        params.append('enabled', document.getElementById('activeHoursEnabled').checked);
+
+        document.querySelectorAll('tr[data-day]').forEach(row => {
+          const dayIndex = row.dataset.day;
+          params.append(`day${dayIndex}_enabled`, row.querySelector('.day-enabled').checked);
+          params.append(`day${dayIndex}_start`, row.querySelector('.day-start').value);
+          params.append(`day${dayIndex}_end`, row.querySelector('.day-end').value);
+        });
+
+        fetch('/api/active-hours', { method: 'POST', body: params })
+          .then(r => r.json())
+          .then(data => showStatus('active-status', data.success, data.message || (data.success ? '✓ Saved' : '✗ Failed')))
+          .catch(e => showStatus('active-status', false, '✗ Error'));
+      }
+
+      // Wakeup Interval functions
+      function loadWakeupInterval() {
+        fetch('/api/wakeup-interval')
+          .then(r => r.json())
+          .then(data => {
+            if (data.success) {
+              document.getElementById('wakeupInterval').value = data.interval;
+            }
+          })
+          .catch(e => console.error('Error loading wakeup interval:', e));
+      }
+
+      function saveWakeupInterval() {
+        const params = new URLSearchParams({
+          interval: document.getElementById('wakeupInterval').value
+        });
+        fetch('/api/wakeup-interval', { method: 'POST', body: params })
+          .then(r => r.json())
+          .then(data => showStatus('wakeup-status', data.success, data.message || (data.success ? '✓ Saved' : '✗ Failed')))
+          .catch(e => showStatus('wakeup-status', false, '✗ Error'));
+      }
+
+      // Manual wakeup
+      function triggerWakeup() {
+        fetch('/wakeup', { method: 'POST' })
+          .then(r => r.json())
+          .then(data => showStatus('manual-status', data.success, data.success ? '✓ Clock woken!' : '✗ Failed'))
+          .catch(e => showStatus('manual-status', false, '✗ Error'));
+      }
+    </script>
   </body>
 </html>

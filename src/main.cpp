@@ -6,6 +6,7 @@
 #include "network.h"
 #include "ota.h"
 #include "rtc.h"
+#include "settings.h"
 #include "web.h"
 
 void setup() {
@@ -16,6 +17,7 @@ void setup() {
     delay(1000);
   }
   setupRTC();
+  setupSettings();
   setupNetwork();
   setupOTA();
   setupWeb();
