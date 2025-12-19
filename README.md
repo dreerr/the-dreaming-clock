@@ -58,8 +58,8 @@ A beautiful ESP32-C3-based 7-segment LED clock with web interface, real-time clo
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/yourusername/dreamy-clock-esp32.git
-   cd dreamy-clock-esp32
+   git clone https://github.com/dreerr/the-dreaming-clock.git
+   cd the-dreaming-clock
    ```
 
 2. **Build and upload firmware**
