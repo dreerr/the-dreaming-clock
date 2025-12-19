@@ -50,6 +50,19 @@ void scheduleAutoWakeup() {
   }
 }
 
+/*
+ * 7-Segment Anordnung einer Ziffer:
+ *
+ *       ┌───5───┐
+ *       │       │
+ *       4       6
+ *       │       │
+ *       ├───3───┤
+ *       │       │
+ *       0       2
+ *       │       │
+ *       └───1───┘
+ */
 void setDigit(int position, int value, int opacity) {
   // Array for positions of segments
   bool sevenSegmentDigits[10][7] = {
