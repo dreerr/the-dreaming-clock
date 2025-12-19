@@ -1,5 +1,7 @@
 # The Dreaming Clock
 
+![The Dreaming Clock Video](./the-dreaming-clock-video.gif)
+
 A beautiful ESP32-C3-based 7-segment LED clock with web interface, real-time clock module, and customizable display schedules.
 
 ![ESP32-C3](https://img.shields.io/badge/ESP32--C3-DevKitM--1-blue)
