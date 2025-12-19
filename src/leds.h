@@ -7,6 +7,7 @@
 
 #include "definitions.h"
 #include "segment.h"
+#include "settings.h"
 
 // RTC from rtc.h
 extern RTC_DS1307 rtc;
@@ -21,11 +22,33 @@ CRGB leds[NUM_LEDS];
 Timer timer;
 int8_t randomChangeEvent = -1;
 int8_t sleepAgainEvent = -1;
+int8_t autoWakeupEvent = -1;
 Segment segments[7 * 4 + 1];
 CHSV mainColor = CHSV(random(0, 255), 255, 255);
 bool awake = false;
 
 unsigned long lastMillis = millis();
+
+// Forward declaration
+void scheduleAutoWakeup();
+
+void triggerAutoWakeup() {
+  wakeup = true;
+  scheduleAutoWakeup(); // Schedule next wakeup
+}
+
+void scheduleAutoWakeup() {
+  if (autoWakeupEvent >= 0) {
+    timer.stop(autoWakeupEvent);
+    autoWakeupEvent = -1;
+  }
+
+  int intervalMinutes = clockSettings.wakeupInterval;
+  if (intervalMinutes > 0 && timeWasSet) {
+    unsigned long intervalMs = (unsigned long)intervalMinutes * 60 * 1000;
+    autoWakeupEvent = timer.after(intervalMs, triggerAutoWakeup);
+  }
+}
 
 void setDigit(int position, int value, int opacity) {
   // Array for positions of segments
@@ -90,6 +113,9 @@ void setupLEDs() {
       .setCorrection(TypicalLEDStrip);
   // FastLED.setMaxPowerInMilliWatts(1000);
   FastLED.showColor(CRGB::Black);
+
+  // Schedule auto wakeup based on settings
+  scheduleAutoWakeup();
 }
 
 void loopLEDs() {
@@ -108,11 +134,9 @@ void loopLEDs() {
       segments[i].fillColor(color, 255);
     }
   } else {
+    // Check if display should be active using settings
     DateTime now = rtc.now();
-    if (ONLY_OFFICE_HOURS &&
-        !(now.hour() > 8 && now.hour() < 18 && now.dayOfTheWeek() > 0 &&
-          now.dayOfTheWeek() < 6)) {
-      // only display during 9-17 Mon-Fri (weekday: 0=Sun, 1=Mon, ... 6=Sat)
+    if (!isDisplayActiveTime(now.dayOfTheWeek(), now.hour())) {
       FastLED.showColor(CRGB::Black);
       return;
     }

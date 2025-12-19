@@ -1,6 +1,6 @@
 # The Dreaming Clock - Projektstruktur
 
-Eine ESP32-C3-basierte 7-Segment LED-Uhr mit Web-Interface und RTC-Modul.
+Eine ESP32-C3-basierte 7-Segment LED-Uhr mit Web-Interface, RTC-Modul und persistierten Einstellungen.
 
 ## Übersicht
 
@@ -10,16 +10,16 @@ dreamy-clock-esp32/
 ├── src/                    # Quellcode
 │   ├── main.cpp            # Hauptprogramm (Setup & Loop)
 │   ├── definitions.h       # Globale Konstanten und Variablen
+│   ├── settings.h          # Persistierte Einstellungen (NVS)
 │   ├── rtc.h               # RTC-Modul (DS1307) Steuerung
 │   ├── leds.h              # LED-Anzeige & 7-Segment Logik
 │   ├── segment.h           # Segment-Klasse für Animationen
 │   ├── network.h           # WiFi & Captive Portal
 │   ├── ota.h               # Over-The-Air Updates
-│   └── web.h               # Webserver & API
+│   └── web.h               # REST API Webserver
 ├── data/                   # LittleFS Dateisystem (Web-Frontend)
-│   ├── index.html          # Hauptseite mit Wakeup-Button
-│   ├── adjust.html         # Formular zum Zeit einstellen
-│   ├── adjusted.html       # Bestätigungsseite
+│   ├── index.html          # Startseite mit Wakeup-Button
+│   ├── adjust.html         # Settings-Seite (Zeit, Active Hours, Wakeup Interval)
 │   ├── style.css           # Styling
 │   └── script.js           # (leer, JS ist inline in HTML)
 └── lib/                    # Private Libraries (leer)
@@ -52,7 +52,7 @@ dreamy-clock-esp32/
 **Einstiegspunkt** - Initialisiert alle Subsysteme und führt die Hauptschleife aus.
 
 ```
-setup() → RTC → Network → OTA → Web → LEDs
+setup() → RTC → Settings → Network → OTA → Web → LEDs
 loop()  → Network → OTA → LEDs
 ```
 
@@ -64,12 +64,41 @@ loop()  → Network → OTA → LEDs
 | `AP_SSID` | "the dreaming clock" | WiFi Access Point Name |
 | `HOSTNAME` | "the-dreaming-clock" | mDNS Hostname |
 | `USE_CAPTIVE` | true | Captive Portal aktivieren |
-| `ONLY_OFFICE_HOURS` | true | Display nur Mo-Fr 9-17 Uhr |
-| `HOUR_START` / `HOUR_END` | 8 / 18 | Bürozeiten |
 
 **Globale Variablen:**
 - `wakeup` - Flag zum "Aufwecken" der Anzeige
 - `timeWasSet` - Ob die RTC-Zeit gesetzt wurde
+
+### settings.h
+**Persistierte Einstellungen** - Verwaltet Einstellungen mit ESP32 Preferences (NVS).
+
+**Datenstrukturen:**
+```cpp
+struct DaySchedule {
+  bool enabled;      // Tag aktiv?
+  uint8_t startHour; // Startzeit (0-23)
+  uint8_t endHour;   // Endzeit (0-23)
+};
+
+struct ClockSettings {
+  bool useActiveHours;    // Active Hours Feature aktiviert?
+  DaySchedule days[7];    // Zeitplan pro Wochentag (0=So, 1=Mo, ...)
+  int wakeupInterval;     // Auto-Wakeup in Minuten (0=aus)
+};
+```
+
+| Funktion | Beschreibung |
+|----------|--------------|
+| `setupSettings()` | Lädt Einstellungen aus NVS |
+| `saveSettings()` | Speichert alle Einstellungen |
+| `saveActiveHours()` | Speichert nur Active Hours |
+| `saveWakeupInterval()` | Speichert nur Wakeup Interval |
+| `isDisplayActiveTime(hour, weekday)` | Prüft ob Display zur Zeit aktiv sein soll |
+
+**Wakeup Intervalle:**
+- 0 = Aus
+- 5, 15, 30 = Minuten
+- 60, 120, 180, 240, 360 = Stunden (1-6h)
 
 ### rtc.h
 **Echtzeituhr** - Verwaltet das DS1307 RTC-Modul via I2C.
@@ -90,18 +119,20 @@ loop()  → Network → OTA → LEDs
 
 | Funktion | Beschreibung |
 |----------|--------------|
-| `setupLEDs()` | Initialisiert FastLED und Segmente |
+| `setupLEDs()` | Initialisiert FastLED und Segmente, startet Auto-Wakeup |
 | `loopLEDs()` | Hauptschleife (60 FPS begrenzt) |
 | `setDigit(pos, value, opacity)` | Setzt eine Ziffer (0-9) |
 | `setNumber(value, opacity)` | Setzt 4-stellige Zahl |
 | `showCurrentTime()` | Zeigt aktuelle Uhrzeit an |
 | `goSleep()` | Wechselt in Random-Modus |
+| `scheduleAutoWakeup()` | Plant nächstes automatisches Aufwachen |
 
 **Verhalten:**
 1. **Zeit nicht gesetzt**: Blinkendes "00:00"
-2. **Außerhalb Bürozeiten**: Display aus (wenn `ONLY_OFFICE_HOURS`)
+2. **Außerhalb Active Hours**: Display aus (basierend auf Settings)
 3. **Wakeup-Modus**: Zeigt Zeit für 15 Sekunden, dann zurück zu Random
 4. **Random-Modus**: Zufällige Farbgradienten auf allen Segmenten
+5. **Auto-Wakeup**: Automatisches Aufwachen basierend auf Intervall-Setting
 
 ### segment.h
 **Segment-Klasse** - Animationslogik für einzelne LED-Segmente.
@@ -140,35 +171,94 @@ loop()  → Network → OTA → LEDs
 - Upload via: `the-dreaming-clock.local`
 
 ### web.h
-**Webserver** - Async HTTP Server auf Port 80.
+**REST API Webserver** - Async HTTP Server auf Port 80 mit JSON Responses.
 
 | Route | Methode | Beschreibung |
 |-------|---------|--------------|
-| `/` | GET | index.html (wenn Zeit gesetzt) oder adjust.html |
-| `/adjust` | GET | Zeit-Einstellungs-Formular |
-| `/adjust` | POST | Zeit setzen (hours, minutes, day, month, yr) |
-| `/wakeup` | POST | Weckt die Anzeige auf (wakeup=1) |
+| `/` | GET | index.html |
+| `/adjust` | GET | Settings-Seite |
+| `/api/time` | GET | Aktuelle Zeit als JSON |
+| `/api/time` | POST | Zeit setzen (hours, minutes, day, month, year) |
+| `/api/active-hours` | GET | Active Hours Einstellungen als JSON |
+| `/api/active-hours` | POST | Active Hours speichern |
+| `/api/wakeup-interval` | GET | Wakeup Interval als JSON |
+| `/api/wakeup-interval` | POST | Wakeup Interval speichern |
+| `/wakeup` | POST | Manuelles Aufwecken |
 | `/*` | GET | Statische Dateien aus LittleFS |
+
+**API Response Format:**
+```json
+{
+  "success": true,
+  "message": "Optional message"
+}
+```
+
+**GET /api/time Response:**
+```json
+{
+  "success": true,
+  "hours": 14,
+  "minutes": 30,
+  "day": 15,
+  "month": 6,
+  "year": 2024,
+  "weekday": 6
+}
+```
+
+**GET /api/active-hours Response:**
+```json
+{
+  "success": true,
+  "enabled": true,
+  "days": [
+    {"enabled": false, "start": 8, "end": 18},
+    {"enabled": true, "start": 8, "end": 18},
+    ...
+  ]
+}
+```
+
+**GET /api/wakeup-interval Response:**
+```json
+{
+  "success": true,
+  "interval": 30
+}
+```
 
 ---
 
 ## Web-Frontend
 
 ### index.html
-Hauptseite mit großem SVG-Button (Wecker-Symbol) zum "Aufwecken" der Uhr.
-- Klick sendet POST an `/wakeup?wakeup=1`
+Startseite mit großem SVG-Button (Wecker-Symbol) zum "Aufwecken" der Uhr.
+- Klick sendet POST an `/wakeup`
+- Link zu Settings-Seite (`/adjust`)
 
 ### adjust.html
-Formular zum Einstellen der Uhrzeit:
-- Stunden (0-23)
-- Minuten (0-59)
-- Tag (1-31)
-- Monat (1-12)
-- Jahr (1970-9999)
+Vollständige Settings-Seite mit AJAX-Speicherung:
 
-### adjusted.html
-Bestätigungsseite nach erfolgreichem Setzen der Zeit.
-- Redirect nach 2 Sekunden zu `/`
+**Sektionen:**
+1. **Set Time** - Stunden, Minuten, Tag, Monat, Jahr
+2. **Active Hours** - Pro Wochentag (Mo-So) aktivierbar mit Start/End Zeit
+3. **Auto Wakeup Interval** - Dropdown mit 5/15/30 Min, 1-6 Stunden, Aus
+4. **Manual Wakeup** - Button zum sofortigen Aufwecken
+
+**Features:**
+- Jede Sektion lädt beim Seitenaufruf die aktuellen Werte
+- Jede Sektion hat eigenen Save-Button
+- Visuelles Feedback bei Erfolg (✓) oder Fehler (✗)
+- Alle Anfragen via `fetch()` API
+
+### style.css
+Modernes Dark-Theme mit:
+- Gradient Background
+- Card-basiertes Layout
+- Responsive Design
+- Animierte Buttons
+- Tabellen-Layout für Wochenplan
 
 ---
 
@@ -179,33 +269,38 @@ Bestätigungsseite nach erfolgreichem Setzen der Zeit.
                     │   BOOT      │
                     └──────┬──────┘
                            │
-        ┌──────────────────┼──────────────────┐
-        ▼                  ▼                  ▼
-   ┌────────┐        ┌──────────┐       ┌──────────┐
-   │  RTC   │        │ Network  │       │   OTA    │
-   │ DS1307 │        │  WiFi AP │       │  Update  │
-   └────┬───┘        └────┬─────┘       └────┬─────┘
-        │                 │                  │
-        └────────────┬────┴──────────────────┘
-                     ▼
-              ┌─────────────┐
-              │  Webserver  │
-              │   Port 80   │
-              └──────┬──────┘
-                     │
-                     ▼
-              ┌─────────────┐
-              │    LEDs     │
-              │  282x APA102│
-              └──────┬──────┘
-                     │
-        ┌────────────┼────────────┐
-        ▼            ▼            ▼
-   ┌─────────┐  ┌─────────┐  ┌─────────┐
-   │ Zeit    │  │ Random  │  │ Wakeup  │
-   │ nicht   │  │ Modus   │  │ Modus   │
-   │ gesetzt │  │         │  │ (15s)   │
-   └─────────┘  └─────────┘  └─────────┘
+   ┌───────────────────────┼───────────────────────┐
+   ▼                       ▼                       ▼
+┌────────┐          ┌───────────┐           ┌──────────┐
+│  RTC   │          │ Settings  │           │ Network  │
+│ DS1307 │          │   NVS     │           │  WiFi AP │
+└────┬───┘          └─────┬─────┘           └────┬─────┘
+     │                    │                      │
+     └────────────────────┼──────────────────────┘
+                          ▼
+                   ┌─────────────┐
+                   │  REST API   │
+                   │  Webserver  │
+                   └──────┬──────┘
+                          │
+                          ▼
+                   ┌─────────────┐
+                   │    LEDs     │
+                   │  282x APA102│
+                   └──────┬──────┘
+                          │
+        ┌─────────────────┼─────────────────┐
+        ▼                 ▼                 ▼
+   ┌─────────┐      ┌─────────┐       ┌─────────┐
+   │ Zeit    │      │ Random  │       │ Wakeup  │
+   │ nicht   │      │ Modus   │       │ Modus   │
+   │ gesetzt │      │         │       │ (15s)   │
+   └─────────┘      └─────────┘       └─────────┘
+                          │
+                    ┌─────┴─────┐
+                    │Auto-Wakeup│
+                    │ (Interval)│
+                    └───────────┘
 ```
 
 ---
@@ -218,6 +313,7 @@ Bestätigungsseite nach erfolgreichem Setzen der Zeit.
 | ESPAsyncWebServer | GitHub | Async HTTP Server |
 | AsyncTCP | GitHub | TCP für ESP32 |
 | RTClib | ^2.1.4 | DS1307 RTC Treiber |
+| ArduinoJson | ^7.0.0 | JSON Serialisierung für REST API |
 
 ---
 
