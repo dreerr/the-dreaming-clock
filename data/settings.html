@@ -15,6 +15,38 @@
       <section class="card">
         <h2>Set Time</h2>
         <div class="form-row">
+          <label>Timezone:</label>
+          <select id="timezone" class="select">
+            <option value="Europe/London">London (GMT/BST)</option>
+            <option value="Europe/Berlin">Berlin (CET/CEST)</option>
+            <option value="Europe/Paris">Paris (CET/CEST)</option>
+            <option value="Europe/Amsterdam">Amsterdam (CET/CEST)</option>
+            <option value="Europe/Rome">Rome (CET/CEST)</option>
+            <option value="Europe/Madrid">Madrid (CET/CEST)</option>
+            <option value="Europe/Vienna" selected>Vienna (CET/CEST)</option>
+            <option value="Europe/Zurich">Zurich (CET/CEST)</option>
+            <option value="Europe/Stockholm">Stockholm (CET/CEST)</option>
+            <option value="Europe/Athens">Athens (EET/EEST)</option>
+            <option value="Europe/Helsinki">Helsinki (EET/EEST)</option>
+            <option value="Europe/Moscow">Moscow (MSK)</option>
+            <option value="America/New_York">New York (EST/EDT)</option>
+            <option value="America/Chicago">Chicago (CST/CDT)</option>
+            <option value="America/Denver">Denver (MST/MDT)</option>
+            <option value="America/Los_Angeles">Los Angeles (PST/PDT)</option>
+            <option value="America/Sao_Paulo">São Paulo (BRT)</option>
+            <option value="Asia/Tokyo">Tokyo (JST)</option>
+            <option value="Asia/Shanghai">Shanghai (CST)</option>
+            <option value="Asia/Singapore">Singapore (SGT)</option>
+            <option value="Asia/Dubai">Dubai (GST)</option>
+            <option value="Australia/Sydney">Sydney (AEST/AEDT)</option>
+            <option value="Pacific/Auckland">Auckland (NZST/NZDT)</option>
+            <option value="UTC">UTC</option>
+          </select>
+        </div>
+        <button class="btn btn-small" onclick="saveTimezone()">Save Timezone</button>
+        <span id="tz-status" class="status"></span>
+        <hr style="margin: 1rem 0; border-color: #444;" />
+        <div class="form-row">
           <input type="number" id="hours" placeholder="HH" max="23" min="0" class="numbers" />
           <span class="divider">:</span>
           <input type="number" id="minutes" placeholder="MM" max="59" min="0" class="numbers" />
@@ -26,6 +58,7 @@
           <span class="divider">.</span>
           <input type="number" id="year" placeholder="YYYY" min="2020" max="2099" class="numbers" />
         </div>
+        <button class="btn btn-small" onclick="fillBrowserTime()">📱 Use Browser Time</button>
         <button class="btn" onclick="saveTime()">Save Time</button>
         <span id="time-status" class="status"></span>
       </section>
@@ -133,10 +166,12 @@
     <script>
       // Load all settings on page load
       document.addEventListener('DOMContentLoaded', function() {
+        loadTimezone();
         loadTime();
         loadActiveHours();
         loadWakeupInterval();
         loadNetwork();
+        fillBrowserTime(); // Fill with current browser time by default
       });
 
       function showStatus(elementId, success, message) {
@@ -144,6 +179,38 @@
         el.textContent = message;
         el.className = 'status ' + (success ? 'success' : 'error');
         setTimeout(() => { el.textContent = ''; el.className = 'status'; }, 3000);
+      }
+
+      // Fill time inputs with browser's current time
+      function fillBrowserTime() {
+        const now = new Date();
+        document.getElementById('hours').value = now.getHours();
+        document.getElementById('minutes').value = now.getMinutes();
+        document.getElementById('day').value = now.getDate();
+        document.getElementById('month').value = now.getMonth() + 1;
+        document.getElementById('year').value = now.getFullYear();
+      }
+
+      // Timezone functions
+      function loadTimezone() {
+        fetch('/api/timezone')
+          .then(r => r.json())
+          .then(data => {
+            if (data.success && data.timezone) {
+              document.getElementById('timezone').value = data.timezone;
+            }
+          })
+          .catch(e => console.error('Error loading timezone:', e));
+      }
+
+      function saveTimezone() {
+        const params = new URLSearchParams({
+          timezone: document.getElementById('timezone').value
+        });
+        fetch('/api/timezone', { method: 'POST', body: params })
+          .then(r => r.json())
+          .then(data => showStatus('tz-status', data.success, data.message || (data.success ? '✓ Saved' : '✗ Failed')))
+          .catch(e => showStatus('tz-status', false, '✗ Error'));
       }
 
       // Time functions

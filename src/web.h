@@ -95,6 +95,34 @@ void setupWeb() {
     }
   });
 
+  // GET /api/timezone - Get current timezone
+  server.on("/api/timezone", HTTP_GET, [](AsyncWebServerRequest *request) {
+    JsonDocument doc;
+    doc["success"] = true;
+    doc["timezone"] = clockSettings.timezone;
+    String response;
+    serializeJson(doc, response);
+    request->send(200, "application/json", response);
+  });
+
+  // POST /api/timezone - Set timezone
+  server.on("/api/timezone", HTTP_POST, [](AsyncWebServerRequest *request) {
+    if (request->hasArg("timezone")) {
+      String tz = request->arg("timezone");
+      if (tz.length() > 0 && tz.length() < sizeof(clockSettings.timezone)) {
+        strncpy(clockSettings.timezone, tz.c_str(),
+                sizeof(clockSettings.timezone) - 1);
+        clockSettings.timezone[sizeof(clockSettings.timezone) - 1] = '\0';
+        saveTimezone();
+        sendJsonResponse(request, true, "Timezone saved");
+      } else {
+        sendJsonResponse(request, false, "Invalid timezone");
+      }
+    } else {
+      sendJsonResponse(request, false, "Missing timezone parameter");
+    }
+  });
+
   // GET /api/active-hours - Get active hours settings
   server.on("/api/active-hours", HTTP_GET, [](AsyncWebServerRequest *request) {
     JsonDocument doc;

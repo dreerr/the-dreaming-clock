@@ -110,6 +110,12 @@ input:focus {
   font-size: 18px;
 }
 
+.btn-small {
+  padding: 8px 16px;
+  font-size: 14px;
+  margin-right: 10px;
+}
+
 .select {
   width: 100%;
   padding: 12px;
@@ -119,6 +125,10 @@ input:focus {
   background: rgba(255, 255, 255, 0.9);
   color: #1a1a2e;
   margin-bottom: 15px;
+}
+
+#timezone {
+  margin-bottom: 0;
 }
 
 .select:focus {

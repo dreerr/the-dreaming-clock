@@ -50,6 +50,7 @@ struct ClockSettings {
   DaySchedule days[7];     // 0=Sunday, 1=Monday, ... 6=Saturday
   uint16_t wakeupInterval; // Minutes between automatic wakeups (0=off)
   bool useActiveHours;     // Whether to use active hours at all
+  char timezone[40];       // IANA timezone identifier (e.g., "Europe/Vienna")
 };
 
 // Global settings instances
@@ -100,6 +101,16 @@ void setupSettings() {
 
   // Load wakeup interval
   clockSettings.wakeupInterval = preferences.getUShort("wakeupInt", WAKEUP_OFF);
+
+  // Load timezone (default: Europe/Berlin)
+  clockSettings.timezone[0] = '\0';
+  if (preferences.isKey("timezone")) {
+    preferences.getString("timezone", clockSettings.timezone,
+                          sizeof(clockSettings.timezone));
+  } else {
+    strcpy(clockSettings.timezone, "Europe/Vienna");
+  }
+  Serial.printf("  Timezone: %s\n", clockSettings.timezone);
 
   // Load day schedules
   // Default: Mon-Fri 8-18, Sat-Sun off
@@ -160,6 +171,12 @@ void saveWakeupInterval() {
   preferences.putUShort("wakeupInt", clockSettings.wakeupInterval);
   Serial.printf("Wakeup interval saved: %d minutes\n",
                 clockSettings.wakeupInterval);
+}
+
+// Save timezone
+void saveTimezone() {
+  preferences.putString("timezone", clockSettings.timezone);
+  Serial.printf("Timezone saved: %s\n", clockSettings.timezone);
 }
 
 // Check if display should be active right now based on settings
