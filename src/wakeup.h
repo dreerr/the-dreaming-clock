@@ -20,17 +20,12 @@ extern ClockSettings clockSettings;
 extern int8_t sleepAgainEvent;
 extern int8_t autoWakeupEvent;
 
-// Forward declaration
+// Forward declarations
 void scheduleAutoWakeup();
+void enterDreamMode(); // Defined in leds.h
 
 // Go back to sleep after wakeup duration
-inline void goSleep() {
-  awake = false;
-  for (int i = 0; i < (7 * 4 + 1); i++) {
-    segments[i].mode = SegmentMode::RANDOM;
-    segments[i].speed = 1;
-  }
-}
+inline void goSleep() { enterDreamMode(); }
 
 // Trigger automatic wakeup
 inline void triggerAutoWakeup() {

@@ -11,9 +11,10 @@ dreamy-clock-esp32/
 │   ├── main.cpp            # Main program (Setup & Loop)
 │   ├── settings.h          # Constants, global variables & persistent settings
 │   ├── rtc.h               # RTC module (DS1307) control
-│   ├── leds.h              # LED setup & main loop
+│   ├── leds.h              # LED setup & main loop (includes display modes)
 │   ├── display.h           # Display functions (setChar, setDigit, setNumber)
 │   ├── patterns.h          # 7-segment patterns for digits & letters
+│   ├── dreams.h            # Dream words & subliminal message system
 │   ├── wakeup.h            # Wakeup/sleep logic & auto-wakeup timer
 │   ├── segment.h           # Segment class for animations
 │   ├── network.h           # WiFi & Captive Portal
@@ -131,16 +132,39 @@ struct ClockSettings {
 | `COLON_LEDS` | 2 | LEDs in colon |
 | `COLON_INDEX` | 28 | Segment index for colon |
 
+**Display Modes (enum DisplayMode):**
+
+| Mode | Description |
+|------|-------------|
+| `MODE_OFF` | Display is off (outside active hours) |
+| `MODE_TIME_NOT_SET` | Blinking "00:00" to indicate RTC needs configuration |
+| `MODE_DREAM` | Random colors with subliminal dream words |
+| `MODE_WAKEUP` | Showing current time clearly for 15 seconds |
+
 | Function | Description |
 |----------|-------------|
-| `setupLEDs()` | Initializes FastLED and segments, starts auto-wakeup |
-| `loopLEDs()` | Main loop (limited to 60 FPS) |
+| `setupLEDs()` | Initializes FastLED and segments, starts in dream mode |
+| `loopLEDs()` | Main loop (limited to 60 FPS), handles mode switching |
+| `enterDreamMode()` | Transitions to dream mode with random patterns |
+| `enterWakeupMode()` | Transitions to wakeup mode showing time |
+| `handleTimeNotSet()` | Mode handler: blinking zeros |
+| `handleDreamMode()` | Mode handler: random patterns + dream words |
+| `handleWakeupMode()` | Mode handler: show current time |
+
+**Dream Word Functions:**
+
+| Function | Description |
+|----------|-------------|
+| `setDreamWord(word, opacity)` | Sets a word on display with given opacity |
+| `startDreamWord()` | Starts showing a random dream word |
+| `endDreamWord()` | Ends current word, returns to pure random |
+| `updateDreamWord()` | Updates dream word animation (called every frame) |
 
 **Behavior:**
 1. **Time not set**: Blinking "00:00"
 2. **Outside Active Hours**: Display off (based on settings)
-3. **Wakeup mode**: Shows time for 15 seconds, then back to random
-4. **Random mode**: Random color gradients on all segments
+3. **Dream mode**: Random color gradients with subliminal words fading in/out
+4. **Wakeup mode**: Shows time for 15 seconds, then back to dream mode
 5. **Auto-wakeup**: Automatic wakeup based on interval setting
 
 ### patterns.h
@@ -188,10 +212,41 @@ struct ClockSettings {
 
 | Function | Description |
 |----------|-------------|
-| `goSleep()` | Switches display back to random mode |
+| `goSleep()` | Calls `enterDreamMode()` to return to dream state |
 | `triggerAutoWakeup()` | Triggers a wakeup event |
 | `scheduleAutoWakeup()` | Schedules next automatic wakeup |
 | `startSleepTimer()` | Starts timer to go back to sleep |
+
+### dreams.h
+**Dream Words** - Subliminal messages displayed during dream phase.
+
+**Word Selection:**
+Only characters that display well on 7-segment displays are used:
+- Uppercase: A, C, E, F, G, H, L, O, P, S, U
+- Lowercase (distinct shapes): b, c, d, n, o, r, t, u
+
+**Word Categories:**
+- Ethereal & Dreamy (HALO, HOPE, GLOW, FADE, etc.)
+- Calming (SAFE, SANE, SURE, HELD, etc.)
+- Abstract (LOOP, SEED, FLEE, FUSE, etc.)
+- Playful lowercase mix (bEEp, bUbS, duSt, etc.)
+- Nature-ish (SunS, LEAF, FERN, POOL, etc.)
+- German words (HASE, EGAL, FELD, GOLD, etc.)
+
+**Configuration Constants:**
+
+| Constant | Value | Description |
+|----------|-------|-------------|
+| `DREAM_WORD_MAX_OPACITY` | 80 | Maximum brightness (0-255) |
+| `DREAM_WORD_MIN_OPACITY` | 15 | Minimum brightness ("barely visible") |
+| `DREAM_WORD_DISPLAY_MS` | 4000 | Duration word is visible (ms) |
+| `DREAM_WORD_PAUSE_MS` | 8000 | Pause between words (ms) |
+| `DREAM_WORD_FADE_SPEED` | 1 | Animation speed (1-4) |
+| `DREAM_WORD_PROBABILITY` | 180 | Chance to show word (0-255) |
+
+| Function | Description |
+|----------|-------------|
+| `getRandomDreamWord()` | Returns a random word from the list |
 
 ### segment.h
 **Segment Class** - Animation logic for individual LED segments.
@@ -351,15 +406,21 @@ Modern dark theme with:
         ┌─────────────────┼─────────────────┐
         ▼                 ▼                 ▼
    ┌─────────┐      ┌─────────┐       ┌─────────┐
-   │  Time   │      │ Random  │       │ Wakeup  │
+   │  Time   │      │  Dream  │       │ Wakeup  │
    │  not    │      │  Mode   │       │  Mode   │
-   │  set    │      │         │       │ (15s)   │
+   │  set    │      │ +Words  │       │ (15s)   │
    └─────────┘      └─────────┘       └─────────┘
                           │
-                    ┌─────┴─────┐
-                    │Auto-Wakeup│
-                    │ (Interval)│
-                    └───────────┘
+              ┌───────────┼───────────┐
+              ▼           │           ▼
+        ┌──────────┐      │     ┌───────────┐
+        │  Dream   │      │     │Auto-Wakeup│
+        │  Words   │      │     │ (Interval)│
+        │ Fade In/ │      │     └───────────┘
+        │   Out    │      │
+        └──────────┘      │
+              │           │
+              └───────────┘
 ```
 
 ---

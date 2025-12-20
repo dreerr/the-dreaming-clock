@@ -23,10 +23,20 @@ A beautiful ESP32-C3-based 7-segment LED clock with web interface, real-time clo
 
 | Mode | Description |
 |------|-------------|
-| **Random** | Mesmerizing random color gradients flowing across all segments |
+| **Dream** | Mesmerizing random color gradients with subliminal words fading in/out |
 | **Wakeup** | Shows current time for 15 seconds with pulsing colon |
 | **Time Not Set** | Blinking "00:00" to indicate RTC needs configuration |
-| **Inactive** | Display off during configured inactive hours |
+| **Off** | Display off during configured inactive hours |
+
+### 💭 Dream Words
+
+During dream mode, the clock subtly displays words from a curated list. Words fade in and out with low opacity, creating an ethereal, barely-perceptible effect:
+
+- **Ethereal**: HALO, HOPE, GLOW, FADE, SOFT, BLUR, HUSH, REST...
+- **Calming**: SAFE, SANE, SURE, HELD, FEEL, SELF, SOLO, COOL...
+- **Nature**: LEAF, FERN, POOL, SAND, LAND, GLEN...
+- **German**: HASE, EGAL, FELD, GOLD, EULE, ERDE, PFAD...
+- **Playful**: bEEp, bUbS, duSt, pUFF, FLoP...
 
 ## 🔧 Hardware Requirements
 
@@ -142,9 +152,10 @@ dreamy-clock-esp32/
 │   ├── main.cpp        # Entry point
 │   ├── settings.h      # Configuration & NVS persistence
 │   ├── rtc.h           # RTC module control
-│   ├── leds.h          # LED setup & main loop
+│   ├── leds.h          # LED setup & main loop (display mode state machine)
 │   ├── display.h       # Display functions (setChar, setDigit, etc.)
 │   ├── patterns.h      # 7-segment patterns for digits & letters
+│   ├── dreams.h        # Dream words & subliminal message system
 │   ├── wakeup.h        # Wakeup/sleep logic & auto-wakeup timer
 │   ├── segment.h       # Segment animation class
 │   ├── network.h       # WiFi & Captive Portal
