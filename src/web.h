@@ -1,3 +1,4 @@
+#pragma once
 #include <Arduino.h>
 #include <ArduinoJson.h>
 #include <AsyncTCP.h>
@@ -13,6 +14,10 @@ extern void setRTCTime(int hours, int minutes, int seconds, int day, int month,
                        int year);
 extern RTC_DS1307 rtc;
 extern bool rtcInitialized;
+
+// Network restart function from network.h
+extern void restartNetwork();
+extern NetworkMode activeNetworkMode;
 
 AsyncWebServer server(80);
 
@@ -164,6 +169,84 @@ void setupWeb() {
   server.on("/wakeup", HTTP_POST, [](AsyncWebServerRequest *request) {
     wakeup = true;
     sendJsonResponse(request, true, "Wakeup triggered");
+  });
+
+  // GET /api/network - Get network settings
+  server.on("/api/network", HTTP_GET, [](AsyncWebServerRequest *request) {
+    JsonDocument doc;
+    doc["success"] = true;
+    doc["mode"] = networkSettings.mode;
+    doc["ssid"] = networkSettings.ssid;
+    // Don't send password for security
+    doc["hasPassword"] = strlen(networkSettings.password) > 0;
+    doc["fallback"] = networkSettings.fallbackToCaptive;
+    doc["activeMode"] = activeNetworkMode;
+    doc["connected"] =
+        (activeNetworkMode == NETWORK_CLIENT && WiFi.status() == WL_CONNECTED);
+    if (activeNetworkMode == NETWORK_CLIENT && WiFi.status() == WL_CONNECTED) {
+      doc["ip"] = WiFi.localIP().toString();
+    } else if (activeNetworkMode == NETWORK_CAPTIVE) {
+      doc["ip"] = "192.168.4.1";
+    }
+
+    String response;
+    serializeJson(doc, response);
+    request->send(200, "application/json", response);
+  });
+
+  // POST /api/network - Set network settings
+  server.on("/api/network", HTTP_POST, [](AsyncWebServerRequest *request) {
+    bool changed = false;
+
+    if (request->hasArg("mode")) {
+      int mode = request->arg("mode").toInt();
+      if (mode == NETWORK_CAPTIVE || mode == NETWORK_CLIENT) {
+        networkSettings.mode = (NetworkMode)mode;
+        changed = true;
+      }
+    }
+
+    if (request->hasArg("ssid")) {
+      String ssid = request->arg("ssid");
+      strncpy(networkSettings.ssid, ssid.c_str(),
+              sizeof(networkSettings.ssid) - 1);
+      networkSettings.ssid[sizeof(networkSettings.ssid) - 1] = '\0';
+      changed = true;
+    }
+
+    if (request->hasArg("password")) {
+      String password = request->arg("password");
+      // Only update password if provided (allow empty to clear)
+      strncpy(networkSettings.password, password.c_str(),
+              sizeof(networkSettings.password) - 1);
+      networkSettings.password[sizeof(networkSettings.password) - 1] = '\0';
+      changed = true;
+    }
+
+    if (request->hasArg("fallback")) {
+      String val = request->arg("fallback");
+      networkSettings.fallbackToCaptive = (val == "true" || val == "1");
+      changed = true;
+    }
+
+    if (changed) {
+      saveNetworkSettings();
+
+      // Check if we should restart network now
+      if (request->hasArg("apply") &&
+          (request->arg("apply") == "true" || request->arg("apply") == "1")) {
+        sendJsonResponse(request, true,
+                         "Network settings saved. Restarting network...");
+        // Delay restart to allow response to be sent
+        delay(100);
+        restartNetwork();
+      } else {
+        sendJsonResponse(request, true,
+                         "Network settings saved. Restart to apply.");
+      }
+    } else {
+      sendJsonResponse(request, false, "No valid parameters provided");
+    }
   });
 
   // Serve static files

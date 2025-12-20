@@ -24,6 +24,20 @@ enum WakeupInterval {
   WAKEUP_OFF = 0 // No automatic wakeup
 };
 
+// Network mode options
+enum NetworkMode {
+  NETWORK_CAPTIVE = 0, // Captive Portal (default)
+  NETWORK_CLIENT = 1   // Connect to WiFi network
+};
+
+// Network settings structure
+struct NetworkSettings {
+  NetworkMode mode;       // Current network mode
+  char ssid[33];          // WiFi SSID (max 32 chars + null)
+  char password[65];      // WiFi password (max 64 chars + null)
+  bool fallbackToCaptive; // Fallback to captive if client fails
+};
+
 // Active hours for a single day
 struct DaySchedule {
   bool enabled;      // Whether the display is active on this day
@@ -38,14 +52,35 @@ struct ClockSettings {
   bool useActiveHours;     // Whether to use active hours at all
 };
 
-// Global settings instance
+// Global settings instances
 extern ClockSettings clockSettings;
+extern NetworkSettings networkSettings;
 extern Preferences preferences;
 
 // Initialize settings from NVS
 void setupSettings() {
   Serial.println("Setup Settings");
   preferences.begin(SETTINGS_NAMESPACE, false);
+
+  // Load network settings
+  networkSettings.mode =
+      (NetworkMode)preferences.getUChar("netMode", NETWORK_CAPTIVE);
+
+  // Initialize strings to empty, then load if they exist
+  networkSettings.ssid[0] = '\0';
+  networkSettings.password[0] = '\0';
+  if (preferences.isKey("netSSID")) {
+    preferences.getString("netSSID", networkSettings.ssid,
+                          sizeof(networkSettings.ssid));
+  }
+  if (preferences.isKey("netPass")) {
+    preferences.getString("netPass", networkSettings.password,
+                          sizeof(networkSettings.password));
+  }
+
+  networkSettings.fallbackToCaptive = preferences.getBool("netFallback", true);
+  Serial.printf("Network mode: %s\n",
+                networkSettings.mode == NETWORK_CAPTIVE ? "Captive" : "Client");
 
   // Load useActiveHours setting
   clockSettings.useActiveHours = preferences.getBool("useActiveHrs", true);
@@ -135,8 +170,18 @@ bool isDisplayActiveTime(uint8_t weekday, uint8_t hour) {
   return (hour >= day.startHour || hour < day.endHour);
 }
 
+// Save network settings
+void saveNetworkSettings() {
+  preferences.putUChar("netMode", networkSettings.mode);
+  preferences.putString("netSSID", networkSettings.ssid);
+  preferences.putString("netPass", networkSettings.password);
+  preferences.putBool("netFallback", networkSettings.fallbackToCaptive);
+  Serial.println("Network settings saved");
+}
+
 // Global variable definitions
 ClockSettings clockSettings;
+NetworkSettings networkSettings;
 Preferences preferences;
 
 extern bool wakeup;

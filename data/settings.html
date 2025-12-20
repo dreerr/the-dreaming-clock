@@ -90,6 +90,43 @@
         <span id="manual-status" class="status"></span>
       </section>
 
+      <!-- Network Settings -->
+      <section class="card">
+        <h2>📶 Network Settings</h2>
+        <div id="network-info" class="info-box"></div>
+        <div class="form-row">
+          <label>Mode:</label>
+          <select id="networkMode" class="select" onchange="toggleNetworkMode()">
+            <option value="0">Captive Portal (Access Point)</option>
+            <option value="1">WiFi Client (Connect to Network)</option>
+          </select>
+        </div>
+        <div id="clientConfig">
+          <div class="form-row">
+            <label>WiFi SSID:</label>
+            <input type="text" id="wifiSSID" placeholder="Network name" maxlength="32" />
+          </div>
+          <div class="form-row">
+            <label>Password:</label>
+            <input type="password" id="wifiPassword" placeholder="Leave empty to keep current" maxlength="64" />
+          </div>
+          <div class="form-row">
+            <label class="toggle">
+              <input type="checkbox" id="fallbackEnabled" checked />
+              <span>Fallback to Captive Portal if connection fails</span>
+            </label>
+          </div>
+        </div>
+        <div class="form-row">
+          <label class="toggle">
+            <input type="checkbox" id="applyNow" checked />
+            <span>Apply changes immediately</span>
+          </label>
+        </div>
+        <button class="btn" onclick="saveNetwork()">Save Network Settings</button>
+        <span id="network-status" class="status"></span>
+      </section>
+
       <a href="/" class="link">← Back to Home</a>
     </div>
 
@@ -99,6 +136,7 @@
         loadTime();
         loadActiveHours();
         loadWakeupInterval();
+        loadNetwork();
       });
 
       function showStatus(elementId, success, message) {
@@ -211,6 +249,58 @@
           .then(r => r.json())
           .then(data => showStatus('manual-status', data.success, data.success ? '✓ Clock woken!' : '✗ Failed'))
           .catch(e => showStatus('manual-status', false, '✗ Error'));
+      }
+
+      // Network functions
+      function loadNetwork() {
+        fetch('/api/network')
+          .then(r => r.json())
+          .then(data => {
+            if (data.success) {
+              document.getElementById('networkMode').value = data.mode;
+              document.getElementById('wifiSSID').value = data.ssid || '';
+              document.getElementById('fallbackEnabled').checked = data.fallback;
+              toggleNetworkMode();
+
+              // Show current status
+              const infoBox = document.getElementById('network-info');
+              const modeText = data.activeMode === 0 ? 'Captive Portal' : 'WiFi Client';
+              let statusText = `<strong>Current:</strong> ${modeText}`;
+              if (data.ip) statusText += ` | <strong>IP:</strong> ${data.ip}`;
+              if (data.activeMode === 1) {
+                statusText += data.connected ? ' | 🟢 Connected' : ' | 🔴 Disconnected';
+              }
+              infoBox.innerHTML = statusText;
+            }
+          })
+          .catch(e => console.error('Error loading network:', e));
+      }
+
+      function toggleNetworkMode() {
+        const mode = document.getElementById('networkMode').value;
+        const clientConfig = document.getElementById('clientConfig');
+        clientConfig.style.display = mode === '1' ? 'block' : 'none';
+      }
+
+      function saveNetwork() {
+        const params = new URLSearchParams();
+        params.append('mode', document.getElementById('networkMode').value);
+        params.append('ssid', document.getElementById('wifiSSID').value);
+        const password = document.getElementById('wifiPassword').value;
+        if (password) params.append('password', password);
+        params.append('fallback', document.getElementById('fallbackEnabled').checked);
+        params.append('apply', document.getElementById('applyNow').checked);
+
+        fetch('/api/network', { method: 'POST', body: params })
+          .then(r => r.json())
+          .then(data => {
+            showStatus('network-status', data.success, data.message || (data.success ? '✓ Saved' : '✗ Failed'));
+            if (data.success && document.getElementById('applyNow').checked) {
+              // Reload page after short delay to show new connection status
+              setTimeout(() => location.reload(), 3000);
+            }
+          })
+          .catch(e => showStatus('network-status', false, '✗ Error'));
       }
     </script>
   </body>
