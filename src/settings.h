@@ -59,7 +59,8 @@ extern Preferences preferences;
 
 // Initialize settings from NVS
 void setupSettings() {
-  Serial.println("Setup Settings");
+  Serial.println("=== Settings Setup ===");
+  Serial.println("  Loading from NVS...");
   preferences.begin(SETTINGS_NAMESPACE, false);
 
   // Load network settings
@@ -79,8 +80,20 @@ void setupSettings() {
   }
 
   networkSettings.fallbackToCaptive = preferences.getBool("netFallback", true);
-  Serial.printf("Network mode: %s\n",
-                networkSettings.mode == NETWORK_CAPTIVE ? "Captive" : "Client");
+
+  // Log network configuration
+  Serial.println("=== Network Configuration ===");
+  Serial.printf("  Mode: %s\n", networkSettings.mode == NETWORK_CAPTIVE
+                                    ? "Captive Portal"
+                                    : "Client");
+  if (networkSettings.mode == NETWORK_CLIENT) {
+    Serial.printf("  SSID: %s\n", networkSettings.ssid);
+    Serial.printf("  Password: %s\n",
+                  strlen(networkSettings.password) > 0 ? "****" : "(none)");
+    Serial.printf("  Fallback to Captive: %s\n",
+                  networkSettings.fallbackToCaptive ? "Yes" : "No");
+  }
+  Serial.println("=============================\n");
 
   // Load useActiveHours setting
   clockSettings.useActiveHours = preferences.getBool("useActiveHrs", true);

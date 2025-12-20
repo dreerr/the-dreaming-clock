@@ -35,12 +35,17 @@ void sendJsonResponse(AsyncWebServerRequest *request, bool success,
 }
 
 void setupWeb() {
-  Serial.println("Setup Web");
+  Serial.println("=== Web Server Setup ===");
+
   if (!LittleFS.begin()) {
-    Serial.println("An Error has occurred while mounting LittleFS");
+    Serial.println("  ERROR: Failed to mount LittleFS filesystem!");
     return;
   }
+  Serial.println("  LittleFS mounted successfully");
+
   MDNS.addService("http", "tcp", 80);
+  Serial.printf("  URL: http://%s.local\n", HOSTNAME);
+  Serial.println("  Port: 80");
 
   // GET / - Main page (always show settings page now)
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
@@ -257,4 +262,6 @@ void setupWeb() {
       [](AsyncWebServerRequest *request) { request->redirect("/"); });
 
   server.begin();
+  Serial.println("  Web server started");
+  Serial.println("========================\n");
 }

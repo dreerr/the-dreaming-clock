@@ -1,5 +1,6 @@
-#include "settings.h"
 #include <Arduino.h>
+
+#include "settings.h"
 
 // Globale Variablen (deklariert in settings.h)
 bool wakeup = false;
@@ -13,18 +14,34 @@ bool timeWasSet = false;
 
 void setup() {
   Serial.begin(115200);
-  for (uint8_t t = 4; t > 0; t--) {
-    Serial.printf("BOOTING %d...\n", t);
+  delay(100); // Give Serial time to initialize
+
+  Serial.println();
+  Serial.println("╔══════════════════════════════════════╗");
+  Serial.println("║     THE DREAMING CLOCK - ESP32-C3    ║");
+  Serial.println("╚══════════════════════════════════════╝");
+  Serial.println();
+
+  for (uint8_t t = 3; t > 0; t--) {
+    Serial.printf("Starting in %d...\n", t);
     Serial.flush();
     delay(1000);
   }
+  Serial.println();
+
   setupRTC();
   setupSettings();
   setupNetwork();
   setupOTA();
   setupWeb();
   setupLEDs();
-  Serial.println("Setup finished!");
+
+  Serial.println();
+  Serial.println("╔══════════════════════════════════════╗");
+  Serial.println("║         SETUP COMPLETE! ✓            ║");
+  Serial.println("╚══════════════════════════════════════╝");
+  Serial.printf("Free heap: %d bytes\n", ESP.getFreeHeap());
+  Serial.println();
 }
 
 void loop() {

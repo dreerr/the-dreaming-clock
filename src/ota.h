@@ -1,35 +1,41 @@
-
 #include <ArduinoOTA.h>
 #include <ESPmDNS.h>
 
 void setupOTA() {
-  Serial.printf("Setup OTA\n");
+  Serial.println("=== OTA Setup ===");
+
   ArduinoOTA.setHostname(HOSTNAME);
+  Serial.printf("  Hostname: %s\n", HOSTNAME);
+
   ArduinoOTA.setPassword((const char *)"kei6yahghohngooS");
-  Serial.println("set pass");
+  Serial.println("  Password: ********");
+
   MDNS.addService("ota", "tcp", 3232);
-  Serial.println("added MDNS");
-  ArduinoOTA.onStart([]() { Serial.println("OTA Start\n"); });
-  ArduinoOTA.onEnd([]() { Serial.println("OTA End\n"); });
+  Serial.println("  mDNS service: ota (TCP:3232)");
+
+  ArduinoOTA.onStart([]() { Serial.println("\n>>> OTA Update started..."); });
+  ArduinoOTA.onEnd(
+      []() { Serial.println("\n>>> OTA Update complete! Rebooting..."); });
   ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
-    Serial.printf("OTA Progress: %u%%\r", (progress / (total / 100)));
+    Serial.printf("  OTA Progress: %u%%\r", (progress / (total / 100)));
   });
   ArduinoOTA.onError([](ota_error_t error) {
-    Serial.printf("OTA Error[%u]: ", error);
+    Serial.printf("\n>>> OTA Error [%u]: ", error);
     if (error == OTA_AUTH_ERROR)
-      Serial.println("Auth Failed");
+      Serial.println("Authentication failed");
     else if (error == OTA_BEGIN_ERROR)
-      Serial.println("Begin Failed");
+      Serial.println("Begin failed");
     else if (error == OTA_CONNECT_ERROR)
-      Serial.println("Connect Failed");
+      Serial.println("Connection failed");
     else if (error == OTA_RECEIVE_ERROR)
-      Serial.println("Receive Failed");
+      Serial.println("Receive failed");
     else if (error == OTA_END_ERROR)
-      Serial.println("End Failed");
+      Serial.println("End failed");
   });
-  Serial.println("start begin");
+
   ArduinoOTA.begin();
-  Serial.println("end begin");
+  Serial.println("  OTA ready for updates");
+  Serial.println("=================\n");
 }
 
 void loopOTA() { ArduinoOTA.handle(); }
