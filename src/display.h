@@ -8,6 +8,7 @@
 
 // External references
 extern RTC_DS1307 rtc;
+extern bool rtcInitialized;
 extern Segment segments[];
 extern CHSV mainColor;
 
@@ -52,6 +53,12 @@ inline void setNumber(int value, int opacity) {
 
 // Display the current time from RTC
 inline void showCurrentTime() {
+  if (!rtcInitialized) {
+    // RTC not connected - show blinking dashes
+    setNumber(8888, 0); // Clear all segments first
+    return;
+  }
+
   DateTime now = rtc.now();
   setNumber(8888, 0); // Clear all segments first
   setNumber(now.minute() + now.hour() * 100, 255);

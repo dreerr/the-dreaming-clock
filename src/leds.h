@@ -85,8 +85,9 @@ void loopLEDs() {
     for (int i = 0; i < NUM_SEGMENTS; i++) {
       segments[i].fillColor(color, 255);
     }
-  } else {
-    // Check if display should be active using settings
+  } else if (rtcInitialized) {
+    // Check if display should be active using settings (only if RTC is
+    // connected)
     DateTime now = rtc.now();
     if (!isDisplayActiveTime(now.dayOfTheWeek(), now.hour())) {
       FastLED.showColor(CRGB::Black);
