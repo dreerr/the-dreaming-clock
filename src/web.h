@@ -297,6 +297,4 @@ void setupWeb() {
 }
 
 // Call this from the main loop to handle WebSocket updates
-void loopWeb() {
-  loopWebSocket();
-}
+void loopWeb() { loopWebSocket(); }
