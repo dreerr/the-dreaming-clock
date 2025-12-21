@@ -7,14 +7,12 @@
 #include "segment.h"
 
 // External references
-extern RTC_DS1307 rtc;
-extern bool rtcInitialized;
-extern bool usingInternalTime;
 extern Segment segments[];
 extern CHSV mainColor;
 DateTime getCurrentTime();
 
 // Set a character (0-9, A-Z, a-z) at a position with given opacity
+// Note: This only sets opacity - caller must set color/mode separately
 inline void setChar(int position, char c, int opacity) {
   int8_t patternIndex = getPatternIndex(c);
   int start = position * 7;
@@ -28,7 +26,6 @@ inline void setChar(int position, char c, int opacity) {
   }
 
   uint8_t pattern = segmentPatterns[patternIndex];
-
   for (int segPos = 0; segPos < 7; segPos++) {
     if ((pattern >> segPos) & 0x01) {
       segments[start + segPos].opacity = opacity;
@@ -56,10 +53,18 @@ inline void setNumber(int value, int opacity) {
 // Display the current time from RTC
 inline void showCurrentTime() {
   DateTime now = getCurrentTime();
-  setNumber(8888, 0); // Clear all segments first
-  setNumber(now.minute() + now.hour() * 100, 255);
+  int timeValue = now.minute() + now.hour() * 100;
+
+  // Set the time digits
+  setNumber(timeValue, 255);
+
+  // // Apply color to all digit segments that are on
+  for (int i = 0; i < 7 * 4; i++) {
+    segments[i].mode = SegmentMode::COLOR;
+  }
 
   // Blinking colon
-  CRGB blinkingColon = ((millis() % 2000) > 1000) ? mainColor : CRGB(0, 0, 0);
-  segments[28].fillColor(blinkingColon, 255);
+  bool colonOn = ((millis() % 2000) > 1000);
+  segments[COLON_INDEX].opacity = colonOn ? 255 : 0;
+  segments[COLON_INDEX].fillColor(mainColor, 255);
 }

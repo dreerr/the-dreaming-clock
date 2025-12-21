@@ -78,7 +78,8 @@ inline void triggerAutoWakeup() {
 // Timer Scheduling
 // ============================================================================
 
-// Schedule the next auto wakeup based on settings
+// Schedule the next auto wakeup at the next aligned time
+// e.g., every 15 min -> wakeup at :00, :15, :30, :45
 inline void scheduleAutoWakeup() {
   if (autoWakeupEvent >= 0) {
     timer.stop(autoWakeupEvent);
@@ -86,10 +87,33 @@ inline void scheduleAutoWakeup() {
   }
 
   int intervalMinutes = clockSettings.wakeupInterval;
-  if (intervalMinutes > 0 && timeWasSet) {
-    unsigned long intervalMs = (unsigned long)intervalMinutes * 60 * 1000;
-    autoWakeupEvent = timer.after(intervalMs, triggerAutoWakeup);
+  if (intervalMinutes <= 0 || !timeWasSet) {
+    return;
   }
+
+  DateTime now = getCurrentTime();
+  int currentMinute = now.minute();
+  int currentSecond = now.second();
+
+  // Calculate minutes until next aligned time
+  // e.g., if interval=15 and current=17, next aligned = 30, wait = 13 min
+  int minutesSinceLastSlot = currentMinute % intervalMinutes;
+  int minutesToNextSlot = intervalMinutes - minutesSinceLastSlot;
+
+  // If we're exactly on a slot, schedule for the next one
+  if (minutesSinceLastSlot == 0 && currentSecond == 0) {
+    minutesToNextSlot = intervalMinutes;
+  }
+
+  // Convert to milliseconds, accounting for current seconds
+  unsigned long msToNextSlot =
+      (unsigned long)minutesToNextSlot * 60 * 1000 - currentSecond * 1000;
+
+  int nextMinute = (currentMinute + minutesToNextSlot) % 60;
+  Serial.printf("[WAKEUP] Next auto wakeup at :%02d (in %lu ms)\n", nextMinute,
+                msToNextSlot);
+
+  autoWakeupEvent = timer.after(msToNextSlot, triggerAutoWakeup);
 }
 
 // Start the sleep timer after wakeup
@@ -106,6 +130,7 @@ inline void startSleepTimer() {
 
 // Set a word on the display with given opacity
 inline void setDreamWord(const char *word, int opacity) {
+  // return;
   if (word == nullptr)
     return;
 
@@ -113,7 +138,6 @@ inline void setDreamWord(const char *word, int opacity) {
   for (int i = 0; i < 4; i++) {
     if (i < len) {
       setChar(i, word[i], opacity);
-      printf(" %c", word[i]);
     } else {
       setChar(i, ' ', 0);
     }
@@ -124,14 +148,22 @@ inline void setDreamWord(const char *word, int opacity) {
 
 // Start showing a new dream word
 void startDreamWord() {
+  // return;
+  // Only start dream word if we're actually in dream mode
+  if (currentMode != MODE_DREAM) {
+    Serial.println("[DREAM] Skipping dream word - not in dream mode");
+    return;
+  }
+
   if (random8() > DREAM_WORD_PROBABILITY) {
     // Skip this word, schedule next attempt
+    Serial.println("[DREAM] Probability skip, trying again later");
     dreamWordEvent = timer.after(DREAM_WORD_PAUSE_MS / 2, startDreamWord);
     return;
   }
 
   currentDreamWord = getRandomDreamWord();
-  printf("Dream Word: %s\n", currentDreamWord);
+  Serial.printf("[DREAM] Starting word: %s\n", currentDreamWord);
   showingDreamWord = true;
   dreamWordStartTime = millis();
   dreamWordOpacity = DREAM_WORD_MIN_OPACITY;
@@ -142,21 +174,29 @@ void startDreamWord() {
 
 // End the current dream word and return to pure random
 void endDreamWord() {
+  // return;
+  Serial.println("[DREAM] Ending dream word, returning to random");
   showingDreamWord = false;
   currentDreamWord = nullptr;
   dreamWordOpacity = 0;
 
-  // Return all segments to random mode
+  // Return all segments to random mode with full opacity
   for (int i = 0; i < 7 * 4; i++) {
     segments[i].mode = SegmentMode::RANDOM;
+    segments[i].opacity = 255;
   }
 
-  // Schedule next dream word
-  dreamWordEvent = timer.after(DREAM_WORD_PAUSE_MS, startDreamWord);
+  // Schedule next dream word (only if still in dream mode)
+  if (currentMode == MODE_DREAM) {
+    Serial.printf("[DREAM] Scheduling next word in %d ms\n",
+                  DREAM_WORD_PAUSE_MS);
+    dreamWordEvent = timer.after(DREAM_WORD_PAUSE_MS, startDreamWord);
+  }
 }
 
 // Update dream word animation (call every frame)
 void updateDreamWord() {
+  // return;
   if (!showingDreamWord || currentDreamWord == nullptr)
     return;
 
@@ -215,6 +255,7 @@ void handleWakeupMode() { showCurrentTime(); }
 
 // Transition to dream mode
 void enterDreamMode() {
+  Serial.println("[DREAM] Entering dream mode");
   currentMode = MODE_DREAM;
   awake = false;
 
@@ -222,6 +263,7 @@ void enterDreamMode() {
   for (int i = 0; i < NUM_SEGMENTS; i++) {
     segments[i].mode = SegmentMode::RANDOM;
     segments[i].speed = random(MIN_SPEED, MAX_SPEED);
+    segments[i].opacity = 255; // Ensure segments are visible
   }
 
   // Start the dream word cycle
@@ -229,11 +271,17 @@ void enterDreamMode() {
     timer.stop(dreamWordEvent);
   }
   showingDreamWord = false;
+  currentDreamWord = nullptr;
+
+  // Schedule first dream word
+  Serial.printf("[DREAM] Scheduling first dream word in %d ms\n",
+                DREAM_WORD_PAUSE_MS);
   dreamWordEvent = timer.after(DREAM_WORD_PAUSE_MS, startDreamWord);
 }
 
 // Transition to wakeup mode (showing time)
 void enterWakeupMode() {
+  Serial.println("[WAKEUP] Entering wakeup mode");
   currentMode = MODE_WAKEUP;
   awake = true;
 
@@ -243,18 +291,28 @@ void enterWakeupMode() {
     dreamWordEvent = -1;
   }
   showingDreamWord = false;
+  currentDreamWord = nullptr;
 
   // Pick new main color
   mainColor = CHSV(random(0, 255), 255, 255);
+  Serial.printf("[WAKEUP] Main color hue: %d\n", mainColor.hue);
 
-  // Set all digit segments to show time with color mode
+  // Show current time immediately
+  showCurrentTime();
+
+  // Set all digit segments to COLOR mode first
   for (int i = 0; i < 7 * 4; i++) {
-    segments[i].fillColor(mainColor, DREAM_WORD_FADE_SPEED);
+    segments[i].mode = SegmentMode::COLOR;
+    segments[i].fillColor(mainColor, 10);
   }
+
+  // Set colon to full brightness
+  segments[COLON_INDEX].mode = SegmentMode::COLOR;
   segments[COLON_INDEX].opacity = 255;
   segments[COLON_INDEX].fillColor(mainColor, 255);
 
   // Start sleep timer
+  Serial.printf("[WAKEUP] Sleep timer: %d ms\n", WAKEUP_DURATION_MS);
   startSleepTimer();
 }
 
@@ -262,24 +320,42 @@ void enterWakeupMode() {
 // Mode Update (called from main loop)
 // ============================================================================
 void updateMode() {
-  // Determine current mode based on state
-  if (!timeWasSet) {
-    currentMode = MODE_TIME_NOT_SET;
-  } else {
-    // Check if display should be active using settings
-    DateTime now = getCurrentTime();
-    if (!isDisplayActiveTime(now.dayOfTheWeek(), now.hour())) {
-      currentMode = MODE_OFF;
-      FastLED.showColor(CRGB::Black);
-      return;
+  // Handle wakeup trigger FIRST - before any mode checks
+  // This ensures wakeup always takes priority
+  if (wakeup) {
+    wakeup = false;
+
+    // Only wakeup if time is set and display should be active
+    if (timeWasSet) {
+      DateTime now = getCurrentTime();
+      if (isDisplayActiveTime(now.dayOfTheWeek(), now.hour())) {
+        enterWakeupMode();
+        return; // Skip rest of update, mode is set
+      }
     }
   }
 
-  // Handle wakeup trigger
-  if (wakeup && currentMode != MODE_WAKEUP) {
-    wakeup = false;
-    enterWakeupMode();
-    showCurrentTime();
+  // Determine current mode based on state
+  if (!timeWasSet) {
+    if (currentMode != MODE_TIME_NOT_SET) {
+      Serial.println("[MODE] Time not set -> MODE_TIME_NOT_SET");
+      currentMode = MODE_TIME_NOT_SET;
+    }
+  } else if (currentMode != MODE_WAKEUP) {
+    // Only check active hours if not in wakeup mode
+    DateTime now = getCurrentTime();
+    if (!isDisplayActiveTime(now.dayOfTheWeek(), now.hour())) {
+      if (currentMode != MODE_OFF) {
+        Serial.println("[MODE] Outside active hours -> MODE_OFF");
+        currentMode = MODE_OFF;
+      }
+      FastLED.showColor(CRGB::Black);
+      return;
+    } else if (currentMode == MODE_OFF) {
+      // Came back into active hours, go to dream mode
+      Serial.println("[MODE] Back in active hours -> MODE_DREAM");
+      enterDreamMode();
+    }
   }
 
   // Execute current mode handler

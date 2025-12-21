@@ -22,6 +22,9 @@ DateTime getCurrentTime();
 extern void restartNetwork();
 extern NetworkMode activeNetworkMode;
 
+// Mode functions from modes.h
+extern void scheduleAutoWakeup();
+
 AsyncWebServer server(80);
 
 // Helper: Send JSON response
@@ -88,6 +91,8 @@ void setupWeb() {
       setRTCTime(request->arg("hours").toInt(), request->arg("minutes").toInt(),
                  0, request->arg("day").toInt(), request->arg("month").toInt(),
                  request->arg("year").toInt());
+      scheduleAutoWakeup();
+      wakeup = true;
       sendJsonResponse(request, true, "Time saved");
     } else {
       sendJsonResponse(request, false, "Missing parameters");
@@ -191,6 +196,7 @@ void setupWeb() {
               if (request->hasArg("interval")) {
                 clockSettings.wakeupInterval = request->arg("interval").toInt();
                 saveWakeupInterval();
+                scheduleAutoWakeup();
                 sendJsonResponse(request, true, "Wakeup interval saved");
               } else {
                 sendJsonResponse(request, false, "Missing interval parameter");
