@@ -78,7 +78,7 @@ inline const char *getRandomDreamWord() {
 // ============================================================================
 
 // How subtle the dream words appear (0-255, lower = more subtle)
-#define DREAM_WORD_MAX_OPACITY 80
+#define DREAM_WORD_MAX_OPACITY 255
 
 // Minimum opacity for dream words (creates "barely visible" effect)
 #define DREAM_WORD_MIN_OPACITY 15
@@ -90,7 +90,7 @@ inline const char *getRandomDreamWord() {
 #define DREAM_WORD_PAUSE_MS 30000
 
 // Animation speed for dream words (1-255, lower = slower/smoother)
-#define DREAM_WORD_FADE_SPEED 255
+#define DREAM_WORD_FADE_SPEED 20
 
 // Probability of showing a word during dream phase (0-255)
 // 255 = always show, 0 = never show
