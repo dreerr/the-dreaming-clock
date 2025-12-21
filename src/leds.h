@@ -11,6 +11,8 @@
 // RTC from rtc.h
 extern RTC_DS1307 rtc;
 extern bool rtcInitialized;
+extern bool usingInternalTime;
+DateTime getCurrentTime();
 
 // ============================================================================
 // LED Hardware Configuration

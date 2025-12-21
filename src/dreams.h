@@ -49,8 +49,6 @@ const char *dreamWords[] = {
     "ERDE", // Erde (earth)
     "PFAD", // Pfad (path)
     "LEER", // leer (empty)
-    "SPAT", // spät (late) - without umlaut
-    "GrUn", // grün (green)
     "bLAU", // blau (blue)
     "rOSA", // rosa (pink)
     "CHEF", // Chef (boss)
@@ -86,14 +84,14 @@ inline const char *getRandomDreamWord() {
 #define DREAM_WORD_MIN_OPACITY 15
 
 // Duration a word is visible before fading (milliseconds)
-#define DREAM_WORD_DISPLAY_MS 4000
+#define DREAM_WORD_DISPLAY_MS 15000
 
 // Pause between words (milliseconds) - random pattern continues
-#define DREAM_WORD_PAUSE_MS 8000
+#define DREAM_WORD_PAUSE_MS 30000
 
-// Animation speed for dream words (1-4, lower = slower/smoother)
-#define DREAM_WORD_FADE_SPEED 1
+// Animation speed for dream words (1-255, lower = slower/smoother)
+#define DREAM_WORD_FADE_SPEED 255
 
 // Probability of showing a word during dream phase (0-255)
 // 255 = always show, 0 = never show
-#define DREAM_WORD_PROBABILITY 180
+#define DREAM_WORD_PROBABILITY 255

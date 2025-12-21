@@ -8,71 +8,21 @@
 #include <LittleFS.h>
 
 #include "settings.h"
-
-// LED preview WebSocket
-extern CRGB leds[];
-extern const int NUM_LEDS;
-extern const int NUM_SEGMENTS;
-extern const int LEDS_PER_SEGMENT;
-extern const int COLON_LEDS;
+#include "websocket.h"
 
 // RTC time setting function from rtc.h
 extern void setRTCTime(int hours, int minutes, int seconds, int day, int month,
                        int year);
 extern RTC_DS1307 rtc;
 extern bool rtcInitialized;
+extern bool usingInternalTime;
+DateTime getCurrentTime();
 
 // Network restart function from network.h
 extern void restartNetwork();
 extern NetworkMode activeNetworkMode;
 
 AsyncWebServer server(80);
-AsyncWebSocket ledSocket("/ws/leds");
-
-// WebSocket event handler
-void onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client,
-               AwsEventType type, void *arg, uint8_t *data, size_t len) {
-  if (type == WS_EVT_CONNECT) {
-    Serial.printf("WebSocket client #%u connected\n", client->id());
-  } else if (type == WS_EVT_DISCONNECT) {
-    Serial.printf("WebSocket client #%u disconnected\n", client->id());
-  }
-}
-
-// Send LED data to all connected WebSocket clients
-// Format: Binary data with 29 segments × 3 bytes (RGB average per segment)
-void sendLedPreview() {
-  if (ledSocket.count() == 0)
-    return; // No clients connected
-
-  // Send averaged RGB per segment (29 segments × 3 bytes = 87 bytes)
-  uint8_t buffer[29 * 3];
-
-  for (int seg = 0; seg < 28; seg++) {
-    // Calculate start index for this segment
-    int start = seg * 10;
-    if (seg >= 14)
-      start += 2; // Skip colon LEDs after segment 13
-
-    // Average the 10 LEDs in this segment
-    uint32_t r = 0, g = 0, b = 0;
-    for (int i = 0; i < 10; i++) {
-      r += leds[start + i].r;
-      g += leds[start + i].g;
-      b += leds[start + i].b;
-    }
-    buffer[seg * 3] = r / 10;
-    buffer[seg * 3 + 1] = g / 10;
-    buffer[seg * 3 + 2] = b / 10;
-  }
-
-  // Colon segment (segment 28, at LED index 140-141)
-  buffer[28 * 3] = (leds[140].r + leds[141].r) / 2;
-  buffer[28 * 3 + 1] = (leds[140].g + leds[141].g) / 2;
-  buffer[28 * 3 + 2] = (leds[140].b + leds[141].b) / 2;
-
-  ledSocket.binaryAll(buffer, sizeof(buffer));
-}
 
 // Helper: Send JSON response
 void sendJsonResponse(AsyncWebServerRequest *request, bool success,
@@ -112,23 +62,19 @@ void setupWeb() {
 
   // ===== API ENDPOINTS =====
 
-  // GET /api/time - Get current RTC time
+  // GET /api/time - Get current time (RTC or internal fallback)
   server.on("/api/time", HTTP_GET, [](AsyncWebServerRequest *request) {
     JsonDocument doc;
-    if (rtcInitialized) {
-      DateTime now = rtc.now();
-      doc["success"] = true;
-      doc["hours"] = now.hour();
-      doc["minutes"] = now.minute();
-      doc["seconds"] = now.second();
-      doc["day"] = now.day();
-      doc["month"] = now.month();
-      doc["year"] = now.year();
-      doc["weekday"] = now.dayOfTheWeek();
-    } else {
-      doc["success"] = false;
-      doc["message"] = "RTC not initialized";
-    }
+    DateTime now = getCurrentTime();
+    doc["success"] = true;
+    doc["hours"] = now.hour();
+    doc["minutes"] = now.minute();
+    doc["seconds"] = now.second();
+    doc["day"] = now.day();
+    doc["month"] = now.month();
+    doc["year"] = now.year();
+    doc["weekday"] = now.dayOfTheWeek();
+    doc["usingInternalTime"] = usingInternalTime;
     String response;
     serializeJson(doc, response);
     request->send(200, "application/json", response);
@@ -342,22 +288,15 @@ void setupWeb() {
   server.onNotFound(
       [](AsyncWebServerRequest *request) { request->redirect("/"); });
 
-  // WebSocket for LED preview
-  ledSocket.onEvent(onWsEvent);
-  server.addHandler(&ledSocket);
-  Serial.println("  WebSocket endpoint: /ws/leds");
+  // Setup WebSocket for LED preview
+  setupWebSocket(server);
 
   server.begin();
   Serial.println("  Web server started");
   Serial.println("========================\n");
 }
 
-// Call this from the main loop to send LED updates
+// Call this from the main loop to handle WebSocket updates
 void loopWeb() {
-  static unsigned long lastWsUpdate = 0;
-  if (millis() - lastWsUpdate > 50) { // ~20 FPS for WebSocket
-    lastWsUpdate = millis();
-    sendLedPreview();
-    ledSocket.cleanupClients();
-  }
+  loopWebSocket();
 }

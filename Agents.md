@@ -1,6 +1,6 @@
 # The Dreaming Clock - Project Structure
 
-An ESP32-C3-based 7-segment LED clock with web interface, RTC module, and persistent settings.
+An ESP32-C3-based 7-segment LED clock with web interface, RTC module (with internal fallback), and persistent settings.
 
 ## Overview
 
@@ -10,7 +10,7 @@ dreamy-clock-esp32/
 ├── src/                    # Source code
 │   ├── main.cpp            # Main program (Setup & Loop)
 │   ├── settings.h          # Constants, global variables & persistent settings
-│   ├── rtc.h               # RTC module (DS1307) control
+│   ├── rtc.h               # RTC module (DS1307) with internal time fallback
 │   ├── leds.h              # LED setup & main loop (includes display modes)
 │   ├── display.h           # Display functions (setChar, setDigit, setNumber)
 │   ├── patterns.h          # 7-segment patterns for digits & letters
@@ -19,7 +19,8 @@ dreamy-clock-esp32/
 │   ├── segment.h           # Segment class for animations
 │   ├── network.h           # WiFi & Captive Portal
 │   ├── ota.h               # Over-The-Air Updates
-│   └── web.h               # REST API Webserver
+│   ├── web.h               # REST API Webserver
+│   └── websocket.h         # WebSocket LED preview
 ├── data/                   # LittleFS filesystem (Web frontend)
 │   ├── index.html          # Homepage with wakeup button
 │   ├── settings.html       # Settings page (time, active hours, wakeup interval)
@@ -108,13 +109,30 @@ struct ClockSettings {
 - 60, 120, 180, 240, 360 = Hours (1-6h)
 
 ### rtc.h
-**Real-Time Clock** - Manages the DS1307 RTC module via I2C.
+**Real-Time Clock** - Manages the DS1307 RTC module via I2C with automatic fallback to internal ESP32 time.
+
+**Time Source Priority:**
+1. **External RTC (DS1307)**: Preferred, persists across power cycles
+2. **Internal Time**: Fallback when RTC not connected, uses `millis()` for timekeeping
+
+**Global Variables:**
+
+| Variable | Type | Description |
+|----------|------|-------------|
+| `rtcInitialized` | bool | True if external RTC is connected and working |
+| `usingInternalTime` | bool | True if using internal fallback (no RTC) |
 
 | Function | Description |
 |----------|-------------|
-| `setupRTC()` | Initializes I2C and checks if RTC is running |
-| `setRTCTime(h, m, s, d, mo, y)` | Sets date and time |
-| `rtc.now()` | Returns current DateTime object |
+| `setupRTC()` | Initializes I2C, detects RTC, falls back to internal time if needed |
+| `setRTCTime(h, m, s, d, mo, y)` | Sets date and time (works with both RTC and internal) |
+| `getCurrentTime()` | Returns current DateTime from RTC or internal fallback |
+
+**Internal Time Fallback:**
+- When RTC is not connected, time is tracked using `millis()` elapsed since last set
+- Default time on boot: January 1, 2025, 00:00:00
+- Time will be lost on power cycle (no battery backup)
+- User can set time via web interface, which works normally
 
 ### leds.h
 **LED Control** - Main LED setup and loop, includes sub-modules.
@@ -297,6 +315,10 @@ Only characters that display well on 7-segment displays are used:
 | `/api/active-hours` | POST | Save Active Hours |
 | `/api/wakeup-interval` | GET | Wakeup Interval as JSON |
 | `/api/wakeup-interval` | POST | Save Wakeup Interval |
+| `/api/network` | GET | Network settings as JSON |
+| `/api/network` | POST | Save Network settings |
+| `/api/timezone` | GET | Timezone setting as JSON |
+| `/api/timezone` | POST | Save Timezone |
 | `/wakeup` | POST | Manual wakeup |
 | `/*` | GET | Static files from LittleFS |
 
@@ -317,7 +339,8 @@ Only characters that display well on 7-segment displays are used:
   "day": 15,
   "month": 6,
   "year": 2024,
-  "weekday": 6
+  "weekday": 6,
+  "usingInternalTime": false
 }
 ```
 
@@ -340,6 +363,38 @@ Only characters that display well on 7-segment displays are used:
   "success": true,
   "interval": 30
 }
+```
+
+### websocket.h
+**WebSocket LED Preview** - Real-time LED state streaming to web clients.
+
+**Protocol:**
+
+| Property | Value |
+|----------|-------|
+| **Endpoint** | `/ws/leds` |
+| **Format** | Binary |
+| **Frame Size** | 87 bytes (29 segments × 3 bytes RGB) |
+| **Update Rate** | ~20 FPS (50ms interval) |
+
+**Segment Layout:**
+- Segments 0-27: 4 digits × 7 segments (averaged RGB per segment)
+- Segment 28: Colon (2 LEDs averaged)
+
+| Function | Description |
+|----------|-------------|
+| `setupWebSocket(server)` | Registers WebSocket handler with AsyncWebServer |
+| `loopWebSocket()` | Sends LED updates to connected clients |
+| `sendLedPreview()` | Broadcasts current LED state as binary data |
+
+**Client Usage (JavaScript):**
+```javascript
+const ws = new WebSocket('ws://the-dreaming-clock.local/ws/leds');
+ws.binaryType = 'arraybuffer';
+ws.onmessage = (event) => {
+  const data = new Uint8Array(event.data);
+  // data[segment * 3] = R, data[segment * 3 + 1] = G, data[segment * 3 + 2] = B
+};
 ```
 
 ---
@@ -388,15 +443,21 @@ Modern dark theme with:
 ┌────────┐          ┌───────────┐           ┌──────────┐
 │  RTC   │          │ Settings  │           │ Network  │
 │ DS1307 │          │   NVS     │           │  WiFi AP │
-└────┬───┘          └─────┬─────┘           └────┬─────┘
+│   or   │          └─────┬─────┘           └────┬─────┘
+│Internal│                │                      │
+└────┬───┘                │                      │
      │                    │                      │
      └────────────────────┼──────────────────────┘
                           ▼
-                   ┌─────────────┐
-                   │  REST API   │
-                   │  Webserver  │
-                   └──────┬──────┘
-                          │
+              ┌───────────────────────┐
+              │                       │
+              ▼                       ▼
+       ┌─────────────┐         ┌─────────────┐
+       │  REST API   │         │  WebSocket  │
+       │  Webserver  │         │ LED Preview │
+       └──────┬──────┘         └──────┬──────┘
+              │                       │
+              └───────────┬───────────┘
                           ▼
                    ┌─────────────┐
                    │    LEDs     │

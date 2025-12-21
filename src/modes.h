@@ -13,6 +13,8 @@
 // ============================================================================
 extern RTC_DS1307 rtc;
 extern bool rtcInitialized;
+extern bool usingInternalTime;
+DateTime getCurrentTime();
 extern CRGB leds[];
 extern Segment segments[];
 extern Timer timer;
@@ -111,6 +113,7 @@ inline void setDreamWord(const char *word, int opacity) {
   for (int i = 0; i < 4; i++) {
     if (i < len) {
       setChar(i, word[i], opacity);
+      printf(" %c", word[i]);
     } else {
       setChar(i, ' ', 0);
     }
@@ -128,6 +131,7 @@ void startDreamWord() {
   }
 
   currentDreamWord = getRandomDreamWord();
+  printf("Dream Word: %s\n", currentDreamWord);
   showingDreamWord = true;
   dreamWordStartTime = millis();
   dreamWordOpacity = DREAM_WORD_MIN_OPACITY;
@@ -261,9 +265,9 @@ void updateMode() {
   // Determine current mode based on state
   if (!timeWasSet) {
     currentMode = MODE_TIME_NOT_SET;
-  } else if (rtcInitialized) {
+  } else {
     // Check if display should be active using settings
-    DateTime now = rtc.now();
+    DateTime now = getCurrentTime();
     if (!isDisplayActiveTime(now.dayOfTheWeek(), now.hour())) {
       currentMode = MODE_OFF;
       FastLED.showColor(CRGB::Black);
