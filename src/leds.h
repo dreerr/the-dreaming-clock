@@ -18,11 +18,13 @@ extern bool rtcInitialized;
 #define FRAMES_PER_SECOND 60
 #define DATA_PIN 6  // GPIO6 on ESP32-C3
 #define CLOCK_PIN 7 // GPIO7 on ESP32-C3
-#define NUM_LEDS 282
-#define NUM_SEGMENTS (7 * 4 + 1) // 4 digits + colon
-#define LEDS_PER_SEGMENT 10
-#define COLON_LEDS 2
-#define COLON_INDEX 28
+
+// Constants exported for web.h LED preview
+const int NUM_LEDS = 282;
+const int NUM_SEGMENTS = (7 * 4 + 1); // 4 digits + colon
+const int LEDS_PER_SEGMENT = 10;
+const int COLON_LEDS = 2;
+const int COLON_INDEX = 28;
 
 // ============================================================================
 // Global Hardware State

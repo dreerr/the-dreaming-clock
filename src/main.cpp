@@ -47,5 +47,6 @@ void setup() {
 void loop() {
   loopNetwork(); // Don't delete!
   loopOTA();     // Don't delete!
+  loopWeb();     // WebSocket LED preview
   loopLEDs();
 }

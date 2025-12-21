@@ -6,10 +6,83 @@
     <title>The Dreaming Clock</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="stylesheet" href="style.css" />
+    <style>
+      .preview-container {
+        background: rgba(0, 0, 0, 0.8);
+        border-radius: 16px;
+        padding: 20px;
+        margin: 20px auto;
+        max-width: 500px;
+      }
+      #clock-preview {
+        width: 100%;
+        height: auto;
+      }
+      .segment {
+        fill: #111;
+        transition: fill 0.05s ease;
+      }
+      .ws-status {
+        text-align: center;
+        font-size: 12px;
+        color: #888;
+        margin-top: 10px;
+      }
+      .ws-status.connected { color: #4caf50; }
+      .ws-status.disconnected { color: #f44336; }
+    </style>
   </head>
   <body>
     <div class="center">
       <h1>⏰ The Dreaming Clock</h1>
+
+      <!-- Live Preview -->
+      <div class="preview-container">
+        <svg id="clock-preview" xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 3685 1502.4">
+          <g id="digit3">
+            <polygon id="seg27" class="segment" points="3370.3 669.3 3416.9 737 3484.9 681.9 3543.3 294.7 3497.8 239.3 3425.7 306.8 3370.3 669.3"/>
+            <polygon id="seg26" class="segment" points="3021.9 270.2 2957.4 213.7 3011.2 155.9 3440 155.9 3480.3 213.7 3415.8 270.2 3021.9 270.2"/>
+            <polygon id="seg25" class="segment" points="2937.3 679.3 2873.6 731.6 2822.7 672.2 2884.8 273 2930.5 233.9 2995.9 289.1 2937.3 679.3"/>
+            <polygon id="seg24" class="segment" points="2941.3 810.5 2894.9 752.7 2961.4 696.3 3349.9 696.3 3390.2 754.1 3327.1 810.5 2941.3 810.5"/>
+            <polygon id="seg23" class="segment" points="3286.3 1207.6 3332.9 1275.3 3400.9 1220.3 3461.3 831 3415.8 775.6 3343.7 843.1 3286.3 1207.6"/>
+            <polygon id="seg22" class="segment" points="2857.3 1348.9 2814.2 1292.4 2877.4 1234.7 3265.9 1234.7 3306.3 1292.4 3243.1 1348.9 2857.3 1348.9"/>
+            <polygon id="seg21" class="segment" points="2853.3 1217.6 2793.6 1269.9 2738.7 1210.6 2800.1 823.5 2870.7 772.3 2913.9 827.5 2853.3 1217.6"/>
+          </g>
+          <g id="digit2">
+            <polygon id="seg20" class="segment" points="2616 669.3 2662.7 737 2730.7 681.9 2789.1 294.7 2743.6 239.3 2671.5 306.8 2616 669.3"/>
+            <polygon id="seg19" class="segment" points="2267.7 270.2 2203.2 213.7 2257 155.9 2685.8 155.9 2726.1 213.7 2661.6 270.2 2267.7 270.2"/>
+            <polygon id="seg18" class="segment" points="2183.1 679.3 2119.3 731.6 2068.5 672.2 2130.6 273 2176.3 233.9 2241.7 289.1 2183.1 679.3"/>
+            <polygon id="seg17" class="segment" points="2187.1 810.5 2140.7 752.7 2207.2 696.3 2595.7 696.3 2636 754.1 2572.8 810.5 2187.1 810.5"/>
+            <polygon id="seg16" class="segment" points="2532.1 1207.6 2578.6 1275.3 2646.7 1220.3 2707.1 831 2661.6 775.6 2589.5 843.1 2532.1 1207.6"/>
+            <polygon id="seg15" class="segment" points="2103 1348.9 2060 1292.4 2123.2 1234.7 2511.7 1234.7 2552 1292.4 2488.9 1348.9 2103 1348.9"/>
+            <polygon id="seg14" class="segment" points="2099 1217.6 2039.4 1269.9 1984.5 1210.6 2045.9 823.5 2116.5 772.3 2159.6 827.5 2099 1217.6"/>
+          </g>
+          <g id="colon">
+            <path id="seg28b" class="segment" d="M1802.7,1070.9c27.4,0,49.7-22.2,49.7-49.7s-22.3-49.7-49.7-49.7-49.7,22.2-49.7,49.7,22.2,49.7,49.7,49.7Z"/>
+            <path id="seg28" class="segment" d="M1883.2,530.6c27.4,0,49.7-22.3,49.7-49.7s-22.3-49.7-49.7-49.7-49.7,22.3-49.7,49.7,22.2,49.7,49.7,49.7Z"/>
+          </g>
+          <g id="digit1">
+            <polygon id="seg13" class="segment" points="1527.5 669.3 1574.1 737 1642.1 681.9 1700.5 294.7 1655 239.3 1583 306.8 1527.5 669.3"/>
+            <polygon id="seg12" class="segment" points="1179.1 270.2 1114.6 213.7 1168.4 155.9 1597.2 155.9 1637.6 213.7 1573 270.2 1179.1 270.2"/>
+            <polygon id="seg11" class="segment" points="1094.5 679.3 1030.8 731.6 980 672.2 1042 273 1087.7 233.9 1153.1 289.1 1094.5 679.3"/>
+            <polygon id="seg10" class="segment" points="1098.5 810.5 1052.1 752.7 1118.7 696.3 1507.2 696.3 1547.5 754.1 1484.3 810.5 1098.5 810.5"/>
+            <polygon id="seg9" class="segment" points="1443.5 1207.6 1490.1 1275.3 1558.1 1220.3 1618.5 831 1573 775.6 1500.9 843.1 1443.5 1207.6"/>
+            <polygon id="seg8" class="segment" points="1014.5 1348.9 971.5 1292.4 1034.6 1234.7 1423.1 1234.7 1463.5 1292.4 1400.3 1348.9 1014.5 1348.9"/>
+            <polygon id="seg7" class="segment" points="1010.5 1217.6 950.8 1269.9 896 1210.6 957.3 823.5 1027.9 772.3 1071.1 827.5 1010.5 1217.6"/>
+          </g>
+          <g id="digit0">
+            <polygon id="seg6" class="segment" points="773.3 669.3 819.9 737 887.9 681.9 946.3 294.7 900.8 239.3 828.7 306.8 773.3 669.3"/>
+            <polygon id="seg5" class="segment" points="424.9 270.2 360.4 213.7 414.2 155.9 843 155.9 883.3 213.7 818.8 270.2 424.9 270.2"/>
+            <polygon id="seg4" class="segment" points="340.3 679.3 276.6 731.6 225.8 672.2 287.8 273 333.5 233.9 398.9 289.1 340.3 679.3"/>
+            <polygon id="seg3" class="segment" points="344.3 810.5 297.9 752.7 364.4 696.3 752.9 696.3 793.3 754.1 730.1 810.5 344.3 810.5"/>
+            <polygon id="seg2" class="segment" points="705.7 1207.6 752.3 1275.3 820.3 1220.3 880.8 831 835.2 775.6 763.2 843.1 705.7 1207.6"/>
+            <polygon id="seg1" class="segment" points="260.3 1348.9 217.3 1292.4 280.4 1234.7 668.9 1234.7 709.3 1292.4 646.1 1348.9 260.3 1348.9"/>
+            <polygon id="seg0" class="segment" points="256.3 1217.6 196.6 1269.9 141.7 1210.6 203.1 823.5 273.7 772.3 316.9 827.5 256.3 1217.6"/>
+          </g>
+        </svg>
+        <div id="ws-status" class="ws-status disconnected">⚫ Connecting...</div>
+      </div>
+
       <svg
         class="button"
         onclick="wakeup()"
@@ -37,6 +110,63 @@
       <a href="/settings" class="link">⚙️ Settings</a>
     </div>
     <script>
+      // WebSocket for LED preview
+      let ws;
+      let reconnectTimer;
+
+      function connectWebSocket() {
+        const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+        ws = new WebSocket(protocol + '//' + location.host + '/ws/leds');
+        ws.binaryType = 'arraybuffer';
+
+        ws.onopen = () => {
+          document.getElementById('ws-status').textContent = '🟢 Live';
+          document.getElementById('ws-status').className = 'ws-status connected';
+          if (reconnectTimer) clearTimeout(reconnectTimer);
+        };
+
+        ws.onclose = () => {
+          document.getElementById('ws-status').textContent = '🔴 Disconnected';
+          document.getElementById('ws-status').className = 'ws-status disconnected';
+          reconnectTimer = setTimeout(connectWebSocket, 2000);
+        };
+
+        ws.onerror = () => {
+          ws.close();
+        };
+
+        ws.onmessage = (event) => {
+          if (event.data instanceof ArrayBuffer) {
+            const data = new Uint8Array(event.data);
+            updatePreview(data);
+          }
+        };
+      }
+
+      function updatePreview(data) {
+        // data: 29 segments × 3 bytes (RGB)
+        for (let seg = 0; seg < 29; seg++) {
+          const r = data[seg * 3];
+          const g = data[seg * 3 + 1];
+          const b = data[seg * 3 + 2];
+          const color = `rgb(${r}, ${g}, ${b})`;
+
+          if (seg === 28) {
+            // Colon - two circles
+            const el1 = document.getElementById('seg28');
+            const el2 = document.getElementById('seg28b');
+            if (el1) el1.style.fill = color;
+            if (el2) el2.style.fill = color;
+          } else {
+            const el = document.getElementById('seg' + seg);
+            if (el) el.style.fill = color;
+          }
+        }
+      }
+
+      // Start WebSocket connection
+      connectWebSocket();
+
       function wakeup() {
         fetch('/wakeup', { method: 'POST' })
           .then(r => r.json())
