@@ -29,9 +29,9 @@ void setup() {
   }
   Serial.println();
 
-  setupRTC();
   setupSettings();
   setupNetwork();
+  setupRTC();
   setupOTA();
   setupWeb();
   setupLEDs();
