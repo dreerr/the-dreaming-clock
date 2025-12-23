@@ -66,5 +66,5 @@ inline void showCurrentTime() {
   // Blinking colon
   bool colonOn = ((millis() % 2000) > 1000);
   segments[COLON_INDEX].opacity = colonOn ? 255 : 0;
-  segments[COLON_INDEX].fillColor(mainColor, 255);
+  segments[COLON_INDEX].fillColor(mainColor, 0); // Instant change
 }

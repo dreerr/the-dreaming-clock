@@ -89,8 +89,8 @@ inline const char *getRandomDreamWord() {
 // Pause between words (milliseconds) - random pattern continues
 #define DREAM_WORD_PAUSE_MS 30000
 
-// Animation speed for dream words (1-255, lower = slower/smoother)
-#define DREAM_WORD_FADE_SPEED 20
+// Animation duration for dream words in milliseconds
+#define DREAM_WORD_FADE_DURATION_MS 2000
 
 // Probability of showing a word during dream phase (0-255)
 // 255 = always show, 0 = never show

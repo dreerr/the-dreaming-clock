@@ -224,7 +224,7 @@ void updateDreamWord() {
   for (int i = 0; i < 7 * 4; i++) {
     if (segments[i].opacity > 0) {
       CHSV dreamColor = CHSV((millis() / 100) % 255, 180, dreamWordOpacity);
-      segments[i].fillColor(dreamColor, DREAM_WORD_FADE_SPEED);
+      segments[i].fillColor(dreamColor, DREAM_WORD_FADE_DURATION_MS);
     }
   }
 }
@@ -239,7 +239,7 @@ void handleTimeNotSet() {
   segments[COLON_INDEX].opacity = 255;
   CRGB color = ((millis() % 2000) > 1000) ? mainColor : CRGB(0, 0, 0);
   for (int i = 0; i < NUM_SEGMENTS; i++) {
-    segments[i].fillColor(color, 255);
+    segments[i].fillColor(color, 0); // Instant change
   }
 }
 
@@ -262,8 +262,8 @@ void enterDreamMode() {
   // Reset all segments to random
   for (int i = 0; i < NUM_SEGMENTS; i++) {
     segments[i].mode = SegmentMode::RANDOM;
-    segments[i].speed = random(MIN_SPEED, MAX_SPEED);
-    segments[i].opacity = 255; // Ensure segments are visible
+    segments[i].durationMs = random(MIN_DURATION_MS, MAX_DURATION_MS);
+    // segments[i].opacity = 255; // Ensure segments are visible
   }
 
   // Start the dream word cycle
@@ -273,10 +273,10 @@ void enterDreamMode() {
   showingDreamWord = false;
   currentDreamWord = nullptr;
 
-  // Schedule first dream word
-  Serial.printf("[DREAM] Scheduling first dream word in %d ms\n",
-                DREAM_WORD_PAUSE_MS);
-  dreamWordEvent = timer.after(DREAM_WORD_PAUSE_MS, startDreamWord);
+  // // Schedule first dream word
+  // Serial.printf("[DREAM] Scheduling first dream word in %d ms\n",
+  //               DREAM_WORD_PAUSE_MS);
+  // dreamWordEvent = timer.after(DREAM_WORD_PAUSE_MS, startDreamWord);
 }
 
 // Transition to wakeup mode (showing time)
@@ -303,13 +303,13 @@ void enterWakeupMode() {
   // Set all digit segments to COLOR mode first
   for (int i = 0; i < 7 * 4; i++) {
     segments[i].mode = SegmentMode::COLOR;
-    segments[i].fillColor(mainColor, 10);
+    segments[i].fillColor(mainColor, 3000); // 3 second fade-in
   }
 
   // Set colon to full brightness
   segments[COLON_INDEX].mode = SegmentMode::COLOR;
   segments[COLON_INDEX].opacity = 255;
-  segments[COLON_INDEX].fillColor(mainColor, 255);
+  segments[COLON_INDEX].fillColor(mainColor, 0); // Instant
 
   // Start sleep timer
   Serial.printf("[WAKEUP] Sleep timer: %d ms\n", WAKEUP_DURATION_MS);

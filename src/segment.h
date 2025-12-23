@@ -1,7 +1,7 @@
 #pragma once
 #define SEGMENT_LENGTH 10
-#define MIN_SPEED 1
-#define MAX_SPEED 4
+#define MIN_DURATION_MS 1000  // Fastest animation: 1 seconds
+#define MAX_DURATION_MS 10000 // Slowest animation: 10 seconds
 
 #include <Arduino.h>
 #include <FastLED.h>
@@ -21,11 +21,11 @@ private:
   CRGB *leds;
   CRGB *current;
   CRGB *target;
-  int blendAmount = 0;
-  unsigned long nextMillis = millis();
+  unsigned long animationStartMs = 0;
+  unsigned long nextSequenceStart = 0;
 
 public:
-  int speed = 255;
+  unsigned int durationMs = 5000; // Animation duration in milliseconds
   int opacity = 0;
   int gradientRange = 0;
   SegmentMode mode = RANDOM;
@@ -57,49 +57,50 @@ public:
 
   void newSequence() {
     // Reset Sequence and copy values from live leds
-    blendAmount = 0;
-    nextMillis = millis() + random(10000);
+    nextSequenceStart = millis() + random(20000); // refactor this!
+    animationStartMs = millis();
     for (int i = 0; i < segLength; i++) {
       current[i] = leds[i + segStart];
     }
   }
 
-  void fillColor(CRGB color, int newSpeed) {
-    mode = COLOR;
+  void fillColor(CRGB color, unsigned int newDurationMs) {
     newSequence();
-    speed = newSpeed;
+    mode = COLOR;
+    durationMs = newDurationMs;
     color.fadeToBlackBy(255 - opacity);
     for (int i = 0; i < segLength; i++) {
       target[i] = color;
-      if (speed == 255) {
-        current[i] = color;
+      if (newDurationMs == 0) {
+        current[i] = color; // Instant change
       }
-    }
-  }
-
-  void animationFinished() {
-    if (mode == RANDOM && nextMillis < millis()) {
-      newSequence();
-      speed = random(MIN_SPEED, MAX_SPEED);
-      // gradientRange = random(0, 50);
-      // opacity = 0;
-      if (random8(255) > 200) {
-        opacity = (random8(255) > 120) ? 255 : 0;
-      }
-      fillRandomGradient(target, segLength);
     }
   }
 
   void drawBlend() {
-    if (blendAmount == 255) {
-      animationFinished();
-    }
+    // Calculate blend amount based on elapsed time
+    unsigned long elapsed = millis() - animationStartMs;
+    int blendAmount =
+        (durationMs > 0) ? min(255UL, (elapsed * 255UL) / durationMs) : 255;
+
     for (int i = 0; i < segLength; i++) {
-      leds[i + segStart] =
-          blend(current[i], target[i], quadwave8(blendAmount / 2));
-      // blend(current[i], target[i], blendAmount);
+      leds[i + segStart] = blend(current[i], target[i], blendAmount);
     }
-    blendAmount = min(255, blendAmount + speed);
+
+    if (blendAmount >= 255) {
+      if (mode == RANDOM && millis() > nextSequenceStart) {
+        newSequence();
+        durationMs = random(MIN_DURATION_MS, MAX_DURATION_MS);
+
+        // Should be made more elegant
+        gradientRange = random(0, 50);
+        if (random8(255) > 200) {
+          opacity = (random8(255) > 120) ? 255 : 0;
+        }
+
+        fillRandomGradient(target, segLength);
+      }
+    }
   }
 
   void draw() {
