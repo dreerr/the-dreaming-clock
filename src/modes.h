@@ -11,6 +11,7 @@ enum class DisplayMode : uint8_t {
   DREAM,        // drifting noise with words condensing out of it
   PATTERN,      // drifting noise, no words
   WAKEUP,       // the time, shown solidly
+  MESSAGE,      // a queued message, playing over everything else
 };
 
 const char *displayModeName(DisplayMode mode);
@@ -35,3 +36,8 @@ void scheduleAutoWakeup();
 // Force dream or pattern mode (used by the API).
 void enterDreamMode(uint32_t now);
 void enterPatternMode(uint32_t now);
+
+// Start playing whatever is queued in messages.h. A message overrides every
+// other mode, including quiet hours and a clock that does not know the time,
+// and hands the display back to whatever it interrupted.
+void startMessages();

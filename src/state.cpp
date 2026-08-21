@@ -5,7 +5,9 @@
 
 #include "clock_time.h"
 #include "config.h"
+#include "messages.h"
 #include "modes.h"
+#include "patterns.h"
 #include "net_wifi.h"
 #include "settings.h"
 #include "timezones.h"
@@ -234,6 +236,11 @@ void serializeState(JsonObject out) {
     day["end"] = clockSettings.days[i].endHour;
   }
 
+  JsonObject message = out["message"].to<JsonObject>();
+  message["playing"] = messagePlaying();
+  message["queued"] = messageQueued();
+  message["text"] = messageCurrentText();
+
   JsonObject network = out["network"].to<JsonObject>();
   network["mode"] = networkSettings.mode;
   network["activeMode"] = activeNetworkMode();
@@ -242,6 +249,108 @@ void serializeState(JsonObject out) {
   network["fallback"] = networkSettings.fallbackToCaptive;
   network["connected"] = networkConnected();
   network["ip"] = networkAddress();
+}
+
+namespace {
+
+// Fills `message` from one JSON object. Returns an error string, or nullptr.
+const char *readMessage(JsonObjectConst in, Message &message) {
+  const char *text = in["text"].as<const char *>();
+  if (text == nullptr || text[0] == '\0') {
+    return "message needs text";
+  }
+  strlcpy(message.text, text, sizeof(message.text));
+
+  if (in["effect"].is<const char *>() &&
+      !messageEffectFromName(in["effect"].as<const char *>(), message.effect)) {
+    return "effect must be scroll, appear or blink";
+  }
+  if (in["fill"].is<const char *>() &&
+      !segmentModeFromName(in["fill"].as<const char *>(), message.fill)) {
+    return "fill must be constant, pulse, blink, gradient, sweep or bloom";
+  }
+  if (in["hue"].is<long>()) {
+    message.hue = clampByte(in["hue"].as<long>());
+  }
+  if (in["stepMs"].is<long>()) {
+    const long ms = in["stepMs"].as<long>();
+    if (ms < 40 || ms > 5000) {
+      return "stepMs must be between 40 and 5000";
+    }
+    message.stepMs = static_cast<uint16_t>(ms);
+  }
+  if (in["repeats"].is<long>()) {
+    const long n = in["repeats"].as<long>();
+    if (n < 1 || n > 20) {
+      return "repeats must be between 1 and 20";
+    }
+    message.repeats = static_cast<uint8_t>(n);
+  }
+  if (in["crossfade"].is<bool>()) {
+    message.crossfade = in["crossfade"].as<bool>();
+  }
+  return nullptr;
+}
+
+// A seven-segment cell renders 0-9 and A-Z; anything else comes out blank.
+// Saying so beats silently swallowing the punctuation someone just sent.
+void reportUnrenderable(const Message &message, JsonArray out) {
+  for (int i = 0; message.text[i] != '\0'; i++) {
+    const char c = message.text[i];
+    if (c == ' ' || isRenderable(c)) {
+      continue;
+    }
+    bool already = false;
+    for (JsonVariantConst seen : out) {
+      const char *s = seen.as<const char *>();
+      if (s != nullptr && s[0] == c) {
+        already = true;
+        break;
+      }
+    }
+    if (!already) {
+      const char one[2] = {c, '\0'};
+      out.add(String(one)); // String so ArduinoJson copies it off the stack
+    }
+  }
+}
+
+} // namespace
+
+CommandResult enqueueMessages(JsonVariantConst body, JsonObject report) {
+  JsonArray blanks = report["unrenderable"].to<JsonArray>();
+  int accepted = 0;
+
+  if (body.is<JsonArrayConst>()) {
+    for (JsonObjectConst entry : body.as<JsonArrayConst>()) {
+      Message message;
+      const char *error = readMessage(entry, message);
+      if (error != nullptr) {
+        return fail(error);
+      }
+      if (!messageEnqueue(message)) {
+        return accepted > 0 ? ok("queue full, some messages dropped")
+                            : fail("queue full, or nothing renderable in text");
+      }
+      reportUnrenderable(message, blanks);
+      accepted++;
+    }
+  } else {
+    Message message;
+    const char *error = readMessage(body.as<JsonObjectConst>(), message);
+    if (error != nullptr) {
+      return fail(error);
+    }
+    if (!messageEnqueue(message)) {
+      return fail("queue full, or nothing renderable in text");
+    }
+    reportUnrenderable(message, blanks);
+    accepted++;
+  }
+
+  report["queued"] = accepted;
+  startMessages();
+  return ok("queued");
 }
 
 void serializeLayout(JsonObject out) {

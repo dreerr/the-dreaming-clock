@@ -30,3 +30,7 @@ CommandResult applyCommand(const char *key, JsonVariantConst value);
 
 // Apply every key in the object. Stops at the first failure and reports it.
 CommandResult applyCommands(JsonObjectConst commands);
+
+// Queue one message or an array of them, played in order. Reports how many were
+// accepted and which characters the display cannot render.
+CommandResult enqueueMessages(JsonVariantConst body, JsonObject report);

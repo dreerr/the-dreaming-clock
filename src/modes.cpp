@@ -8,6 +8,7 @@
 #include "config.h"
 #include "display.h"
 #include "dreams.h"
+#include "messages.h"
 #include "leds.h"
 #include "schedule.h"
 #include "segment.h"
@@ -56,6 +57,11 @@ constexpr uint16_t MOTION_CYCLE_MIN_MS = 11000;
 // How long a segment takes to hand over when it changes animation.
 constexpr uint16_t MODE_CROSSFADE_MS = 3000;
 
+// A message dims the display out before it starts and back afterwards. This
+// rides on segment brightness, which is applied at render time, so the ramp is
+// immediate rather than waiting for a cycle boundary.
+constexpr uint32_t MESSAGE_DIM_MS = 600;
+
 // Settling for a word is staggered across the segments rather than done in one
 // frame — 29 bars all changing at the same instant reads as a jump however
 // smoothly each one is cross-faded.
@@ -98,6 +104,14 @@ Deadline dreamWordChange;
 // ===========================================================================
 DisplayMode mode = DisplayMode::DREAM;
 volatile bool wakeupRequested = false;
+volatile bool messageRequested = false;
+
+// What to hand the display back to when the queue runs out — including OFF, if
+// the message arrived outside active hours.
+DisplayMode modeBeforeMessage = DisplayMode::DREAM;
+uint32_t messageEnteredAt = 0;
+bool messageLeaving = false;
+uint32_t messageLeavingAt = 0;
 
 CHSV mainColor = CHSV(0, 255, 255);
 
@@ -105,8 +119,8 @@ bool showingWord = false;
 const char *currentWord = nullptr;
 uint32_t wordStartedAt = 0;
 
-const char *const kModeNames[] = {"off", "time-not-set", "dream", "pattern",
-                                  "wakeup"};
+const char *const kModeNames[] = {"off",    "time-not-set", "dream",
+                                  "pattern", "wakeup",      "message"};
 
 uint8_t dreamBrightness() { return clockSettings.dreamBrightness; }
 uint8_t wakeBrightness() { return clockSettings.brightness; }
@@ -283,6 +297,63 @@ void renderDream(uint32_t now, bool withWords) {
   segments[COLON_INDEX].probability = noise / 3;
 }
 
+// 0..255, ramping in at the start of a message and out at the end.
+uint8_t messageDim(uint32_t now) {
+  if (messageLeaving) {
+    const uint32_t since = now - messageLeavingAt;
+    if (since >= MESSAGE_DIM_MS) {
+      return 0;
+    }
+    return static_cast<uint8_t>(255 - (since * 255) / MESSAGE_DIM_MS);
+  }
+  const uint32_t since = now - messageEnteredAt;
+  if (since >= MESSAGE_DIM_MS) {
+    return 255;
+  }
+  return static_cast<uint8_t>((since * 255) / MESSAGE_DIM_MS);
+}
+
+void renderMessage(uint32_t now) {
+  const Message *message = messageCurrent();
+  if (message == nullptr) {
+    setAllDigits(0);
+    segments[COLON_INDEX].probability = 0;
+    return;
+  }
+
+  char window[NUM_DIGITS];
+  messageWindow(window);
+
+  // Solid, readable glyphs — probability 255 means the segment is certainly
+  // lit, the same guarantee the time display relies on.
+  for (int i = 0; i < NUM_DIGITS; i++) {
+    setChar(i, window[i], 255);
+  }
+
+  // Three things multiply into the brightness: the configured ceiling, the
+  // effect's envelope within the step (what makes appear fade and blink
+  // blink), and the dim-in/dim-out around the whole message.
+  const uint8_t bright =
+      scale8(scale8(wakeBrightness(), messageLevel(now)), messageDim(now));
+
+  const CHSV colour = CHSV(message->hue, 255, 255);
+  for (int i = 0; i < NUM_DIGIT_SEGMENTS; i++) {
+    Segment &segment = segments[i];
+    segment.mode = message->fill;
+    segment.color = CRGB(colour);
+    segment.hueBase = message->hue;
+    segment.hueSpread = 60;
+    segment.brightness = bright;
+    // A cross-fading step glides between glyphs; a hard step snaps.
+    segment.fadeMs = message->crossfade ? message->stepMs / 2 : 0;
+    segment.cycleMs = message->stepMs > 0 ? message->stepMs : 1;
+  }
+
+  // The colon has nothing to say during a message.
+  segments[COLON_INDEX].probability = 0;
+  segments[COLON_INDEX].brightness = 0;
+}
+
 void renderTimeNotSet() {
   setAllMode(SegmentMode::BLINK, TIME_NOT_SET_BLINK_MS, 0);
   setAllColor(CRGB(mainColor), wakeBrightness());
@@ -323,6 +394,8 @@ const char *displayModeName(DisplayMode m) {
 DisplayMode currentDisplayMode() { return mode; }
 
 void requestWakeup() { wakeupRequested = true; }
+
+void startMessages() { messageRequested = true; }
 
 void enterDreamMode(uint32_t now) {
   Serial.println(F("[MODE] dream"));
@@ -391,6 +464,52 @@ void setupModes(uint32_t now) {
 }
 
 void updateMode(uint32_t now) {
+  // --- messages override everything ----------------------------------------
+  // Deliberately before the time-not-set and active-hours branches: a message
+  // is an explicit act, so it lights the display whatever the clock is doing.
+  if (messageRequested) {
+    messageRequested = false;
+    if (messageQueued() > 0 && mode != DisplayMode::MESSAGE) {
+      Serial.printf("[MODE] message (%d queued)\n", messageQueued());
+      modeBeforeMessage = mode;
+      mode = DisplayMode::MESSAGE;
+      messageEnteredAt = now;
+      messageLeaving = false;
+      messageBegin(now);
+      setAllMode(SegmentMode::CONSTANT, 400, 200);
+      restartAll(now);
+    }
+  }
+
+  if (mode == DisplayMode::MESSAGE) {
+    if (!messageLeaving && !messageUpdate(now)) {
+      messageLeaving = true;
+      messageLeavingAt = now;
+    }
+    if (messageLeaving && (now - messageLeavingAt) >= MESSAGE_DIM_MS) {
+      Serial.println(F("[MODE] message done"));
+      messageLeaving = false;
+      // Re-enter whatever was interrupted so its timers and segments are set
+      // up properly, rather than dropping back into a half-configured state.
+      switch (modeBeforeMessage) {
+      case DisplayMode::PATTERN:
+        enterPatternMode(now);
+        break;
+      case DisplayMode::WAKEUP:
+      case DisplayMode::DREAM:
+      case DisplayMode::OFF:
+      case DisplayMode::TIME_NOT_SET:
+      case DisplayMode::MESSAGE:
+      default:
+        enterDreamMode(now);
+        break;
+      }
+    } else {
+      renderMessage(now);
+      return;
+    }
+  }
+
   // --- timers, serviced in every mode -------------------------------------
   if (autoWakeup.due(now)) {
     wakeupRequested = true;
@@ -460,6 +579,7 @@ void updateMode(uint32_t now) {
     renderWakeup();
     break;
   case DisplayMode::OFF:
+  case DisplayMode::MESSAGE:
     break;
   }
 }

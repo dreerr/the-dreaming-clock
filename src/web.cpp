@@ -6,6 +6,7 @@
 #include <LittleFS.h>
 
 #include "config.h"
+#include "messages.h"
 #include "modes.h"
 #include "state.h"
 #include "timezones.h"
@@ -76,6 +77,27 @@ void handleStatePost(AsyncWebServerRequest *request) {
   sendResult(request, applyCommands(doc.as<JsonObjectConst>()));
 }
 
+void handleMessagePost(AsyncWebServerRequest *request) {
+  if (request->_tempObject == nullptr) {
+    sendResult(request, {false, "missing, oversized or unreadable body"});
+    return;
+  }
+  JsonDocument doc;
+  if (deserializeJson(doc, static_cast<const char *>(request->_tempObject))) {
+    sendResult(request, {false, "invalid JSON"});
+    return;
+  }
+
+  JsonDocument out;
+  JsonObject report = out.to<JsonObject>();
+  const CommandResult result = enqueueMessages(doc.as<JsonVariantConst>(), report);
+  report["success"] = result.ok;
+  if (result.message != nullptr) {
+    report["message"] = result.message;
+  }
+  sendJson(request, result.ok ? 200 : 400, out);
+}
+
 void registerRoutes() {
   // --- state ---------------------------------------------------------------
   server.on("/api/state", HTTP_GET, [](AsyncWebServerRequest *request) {
@@ -85,6 +107,17 @@ void registerRoutes() {
   });
 
   server.on("/api/state", HTTP_POST, handleStatePost, nullptr, collectBody);
+
+  // --- messages -------------------------------------------------------------
+  server.on("/api/message", HTTP_POST, handleMessagePost, nullptr, collectBody);
+
+  server.on("/api/message", HTTP_DELETE, [](AsyncWebServerRequest *request) {
+    messageClearAll();
+    JsonDocument doc;
+    doc["success"] = true;
+    doc["message"] = "queue cleared";
+    sendJson(request, 200, doc);
+  });
 
   // --- LED layout, so the preview does not duplicate the mapping ------------
   server.on("/api/layout", HTTP_GET, [](AsyncWebServerRequest *request) {
