@@ -1,0 +1,51 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    name: Unit tests (host)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install PlatformIO
+        run: pip install --upgrade platformio
+      - name: Run logic tests
+        run: pio test -e native
+
+  firmware:
+    name: Firmware build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install PlatformIO
+        run: pip install --upgrade platformio
+      - name: Cache PlatformIO
+        uses: actions/cache@v4
+        with:
+          path: ~/.platformio
+          key: pio-${{ hashFiles('platformio.ini') }}
+      - name: Install frontend toolchain
+        working-directory: web
+        run: npm ci
+      # Builds on a clean runner with no global PlatformIO library store, which
+      # is what catches a dependency that is only installed on someone's laptop.
+      - name: Build firmware
+        run: pio run
+      - name: Check the committed data/ matches web/
+        run: |
+          node web/build.mjs
+          git diff --exit-code -- data/ \
+            || (echo "::error::data/ is stale — run 'node web/build.mjs' and commit"; exit 1)
