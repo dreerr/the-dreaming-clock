@@ -254,7 +254,27 @@ export class PreviewSocket {
     this.onStatus = onStatus;
     this.ws = null;
     this.retryMs = 1000;
-    this.connect();
+    this.active = !document.hidden;
+
+    // A hidden tab does not run requestAnimationFrame, so it draws nothing —
+    // but the device would keep sending it ~21 KB/s regardless. Drop the socket
+    // while the page is in the background and pick it up again on return.
+    document.addEventListener("visibilitychange", () => {
+      this.setActive(!document.hidden);
+    });
+
+    if (this.active) this.connect();
+  }
+
+  setActive(active) {
+    if (active === this.active) return;
+    this.active = active;
+    if (active) {
+      this.retryMs = 1000;
+      this.connect();
+    } else if (this.ws) {
+      this.ws.close();
+    }
   }
 
   connect() {
@@ -273,7 +293,10 @@ export class PreviewSocket {
     };
     this.ws.onclose = () => {
       this.onStatus("offline");
-      setTimeout(() => this.connect(), this.retryMs);
+      if (!this.active) return; // paused on purpose, not a dropout
+      setTimeout(() => {
+        if (this.active) this.connect();
+      }, this.retryMs);
       this.retryMs = Math.min(this.retryMs * 2, 10000);
     };
     this.ws.onerror = () => this.ws.close();
@@ -281,5 +304,9 @@ export class PreviewSocket {
 
   send(text) {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) this.ws.send(text);
+  }
+
+  get connected() {
+    return Boolean(this.ws) && this.ws.readyState === WebSocket.OPEN;
   }
 }

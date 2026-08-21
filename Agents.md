@@ -249,8 +249,8 @@ shipped payload from 34 KB to ~9 KB, and lets both pages share one API module.
 |------|---------|
 | `web/js/preview.js` | Canvas LED renderer + WebSocket transport |
 | `web/js/api.js` | `/api/state` wrapper |
-| `web/js/index.js` | Clock page: preview, tap-to-wake, calibration |
-| `web/js/settings.js` | Settings page |
+| `web/js/index.js` | Page shell: preview, tap-to-wake, panel, calibration |
+| `web/js/settings.js` | Settings panel controls (a module, not a page) |
 | `web/geometry.json` | Segment shapes and gradient axes (no LED counts) |
 | `web/clock.svg` | The artwork; source of truth for the shapes |
 | `scripts/make_geometry.py` | Regenerates `geometry.json` from the SVG |
@@ -259,7 +259,7 @@ shipped payload from 34 KB to ~9 KB, and lets both pages share one API module.
 
 `geometry.json` says where each bar is and `/api/layout` says which LEDs are in
 it, but only the hardware knows **which end of a bar is LED 0**. Press
-the calibrate icon (top right): one LED walks the strip while the
+Settings -> Developer -> Calibrate LED order: one LED walks the strip while the
 readout names its segment and position. If a bar fills in the opposite direction
 on screen from the physical clock, adjust `segmentIsReversed()` in
 `src/config.h` and reflash — the preview reads it from `/api/layout`.

@@ -8,39 +8,226 @@
     <link rel="stylesheet" href="style.css" />
   </head>
   <body class="stage">
-    <nav class="topbar">
-      <span id="ws-dot" class="live-dot" role="status" aria-label="Connection"></span>
 
-      <button
-        id="calibrate-button"
-        class="icon-button"
-        type="button"
-        aria-pressed="false"
-        aria-label="Calibrate LED order"
-        title="Calibrate LED order"
-      >
-        <!-- A strip of LEDs with one lit: what the calibration walk does. -->
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <circle cx="3.5" cy="12" r="1.6" />
-          <circle cx="9" cy="12" r="1.6" />
-          <circle cx="14.5" cy="12" r="1.6" class="filled" />
-          <circle cx="20" cy="12" r="1.6" />
-          <path d="M14.5 6.5v2M14.5 15.5v2" />
-        </svg>
-      </button>
+    <div class="app">
+      <nav class="topbar">
+        <span id="ws-dot" class="live-dot" role="status" aria-label="Connection"></span>
 
-      <a class="icon-button" href="/settings.html" aria-label="Settings" title="Settings">
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M5 3v6.2M5 14.8V21M12 3v3.2M12 11.8V21M19 3v9.2M19 17.8V21" />
-          <circle cx="5" cy="12" r="2.4" />
-          <circle cx="12" cy="9" r="2.4" />
-          <circle cx="19" cy="15" r="2.4" />
-        </svg>
-      </a>
-    </nav>
 
-    <!-- The clock is the control: tapping it wakes it up. -->
-    <button id="preview" class="clock" type="button" aria-label="Show the time now"></button>
+        <button
+          id="settings-toggle"
+          class="icon-button"
+          type="button"
+          aria-expanded="false"
+          aria-controls="panel"
+          aria-label="Settings"
+          title="Settings"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M5 3v6.2M5 14.8V21M12 3v3.2M12 11.8V21M19 3v9.2M19 17.8V21" />
+            <circle cx="5" cy="12" r="2.4" />
+            <circle cx="12" cy="9" r="2.4" />
+            <circle cx="19" cy="15" r="2.4" />
+          </svg>
+        </button>
+      </nav>
+      <!-- The clock is the control: tapping it wakes it up. -->
+      <button id="preview" class="clock" type="button" aria-label="Show the time now"></button>
+
+      <!-- Settings live beside the clock, not on another page, so a change is
+           visible on the preview the moment it is made. -->
+      <aside id="panel" class="panel" aria-label="Settings" inert>
+        <div class="panel-head">
+          <button id="panel-close" class="icon-button" type="button" aria-label="Close settings">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M6 6l12 12M18 6L6 18" />
+            </svg>
+          </button>
+        </div>
+        <div class="sheet">
+
+        <section>
+          <h2>Time</h2>
+          <p id="time-info" class="state"></p>
+
+          <div class="row">
+            <label for="timezone">Timezone</label>
+            <select id="timezone" class="grow"></select>
+          </div>
+          <div class="actions">
+            <button id="save-timezone" class="btn" type="button">Save timezone</button>
+            <span id="tz-status" class="status"></span>
+          </div>
+        </section>
+
+        <section>
+          <h2>Set manually</h2>
+          <p class="note">
+            The clock syncs from NTP by itself once it is on a network. This is only
+            needed while it runs as an access point.
+          </p>
+          <!-- Grouped so a narrow screen wraps between time and date, never
+               through the middle of either. -->
+          <div class="time-fields">
+            <span class="field-group">
+              <input type="number" id="hours" placeholder="HH" min="0" max="23" aria-label="Hours" />
+              <span class="sep">:</span>
+              <input type="number" id="minutes" placeholder="MM" min="0" max="59" aria-label="Minutes" />
+            </span>
+            <span class="field-group">
+              <input type="number" id="day" placeholder="DD" min="1" max="31" aria-label="Day" />
+              <span class="sep">.</span>
+              <input type="number" id="month" placeholder="MM" min="1" max="12" aria-label="Month" />
+              <span class="sep">.</span>
+              <input type="number" id="year" class="wide" placeholder="YYYY" min="2020" max="2099" aria-label="Year" />
+            </span>
+          </div>
+          <div class="actions">
+            <button id="use-browser-time" class="btn quiet" type="button">Use browser time</button>
+            <button id="save-time" class="btn" type="button">Set clock</button>
+            <span id="time-status" class="status"></span>
+          </div>
+        </section>
+
+        <section>
+          <h2>Display</h2>
+          <div class="row">
+            <label>Mode</label>
+            <span id="mode-status" class="status"></span>
+            <div class="segmented" id="mode-buttons" role="group" aria-label="Display mode">
+              <button type="button" data-mode="dream" aria-pressed="false">Dream</button>
+              <button type="button" data-mode="pattern" aria-pressed="false">Patterns</button>
+              <button type="button" data-mode="wakeup" aria-pressed="false">Time</button>
+            </div>
+          </div>
+
+          <div class="row">
+            <label for="brightness">Time brightness</label>
+            <input type="range" id="brightness" min="0" max="255" />
+            <output id="brightness-value">—</output>
+          </div>
+          <div class="row">
+            <label for="dreamBrightness">Dream brightness</label>
+            <input type="range" id="dreamBrightness" min="0" max="255" />
+            <output id="dreamBrightness-value">—</output>
+          </div>
+          <div class="actions">
+            <button id="save-brightness" class="btn" type="button">Save brightness</button>
+            <span id="brightness-status" class="status"></span>
+          </div>
+        </section>
+
+        <section>
+          <h2>Active hours</h2>
+          <div class="row">
+            <label class="switch" for="activeHoursEnabled">
+              <input type="checkbox" id="activeHoursEnabled" />
+              <span class="track"></span>
+              <span>Only run at these times</span>
+            </label>
+          </div>
+          <div id="activeHoursConfig">
+            <table class="schedule">
+              <thead>
+                <tr><th>Day</th><th>On</th><th>From</th><th>To</th></tr>
+              </thead>
+              <tbody id="day-rows"></tbody>
+            </table>
+          </div>
+          <div class="actions">
+            <button id="save-active-hours" class="btn" type="button">Save schedule</button>
+            <span id="active-status" class="status"></span>
+          </div>
+        </section>
+
+        <section>
+          <h2>Auto wakeup</h2>
+          <p class="note">How often the clock shows the time by itself.</p>
+          <div class="row">
+            <label for="wakeupInterval">Interval</label>
+            <select id="wakeupInterval">
+              <option value="0">Off</option>
+              <option value="5">Every 5 minutes</option>
+              <option value="15">Every 15 minutes</option>
+              <option value="30">Every 30 minutes</option>
+              <option value="60">Every hour</option>
+              <option value="120">Every 2 hours</option>
+              <option value="180">Every 3 hours</option>
+              <option value="240">Every 4 hours</option>
+              <option value="360">Every 6 hours</option>
+            </select>
+          </div>
+          <div class="actions">
+            <button id="save-wakeup" class="btn" type="button">Save interval</button>
+            <span id="wakeup-status" class="status"></span>
+          </div>
+        </section>
+
+        <section>
+          <h2>Network</h2>
+          <p id="network-info" class="state"></p>
+
+          <div class="row">
+            <label for="networkMode">Mode</label>
+            <select id="networkMode">
+              <option value="0">Access point</option>
+              <option value="1">Join a network</option>
+            </select>
+          </div>
+
+          <div id="clientConfig">
+            <div class="row">
+              <label for="wifiSSID">Network</label>
+              <input type="text" id="wifiSSID" class="grow" placeholder="Name" maxlength="32" />
+            </div>
+            <div class="row">
+              <label for="wifiPassword">Password</label>
+              <input type="password" id="wifiPassword" class="grow" placeholder="Leave empty to keep" maxlength="64" />
+            </div>
+            <div class="row">
+              <label class="switch" for="fallbackEnabled">
+                <input type="checkbox" id="fallbackEnabled" />
+                <span class="track"></span>
+                <span>Fall back to access point</span>
+              </label>
+            </div>
+          </div>
+
+          <div class="row">
+            <label class="switch" for="applyNow">
+              <input type="checkbox" id="applyNow" checked />
+              <span class="track"></span>
+              <span>Apply immediately</span>
+            </label>
+          </div>
+          <div class="actions">
+            <button id="save-network" class="btn" type="button">Save network</button>
+            <span id="network-status" class="status"></span>
+          </div>
+        </section>
+
+          <section>
+            <details class="disclosure">
+              <summary>Developer</summary>
+
+              <p class="note">
+                Walk a single lit LED along the strip to check the physical LED
+                order inside each segment. Compare the clock with the preview:
+                if a bar fills the opposite way on screen, adjust
+                <code>segmentIsReversed()</code> in <code>src/config.h</code>
+                and reflash.
+              </p>
+              <div class="actions">
+                <button id="calibrate-button" class="btn" type="button" aria-pressed="false">
+                  Calibrate LED order
+                </button>
+                <span id="calibrate-status" class="status"></span>
+              </div>
+            </details>
+          </section>
+        </div>
+      </aside>
+    </div>
 
     <p id="readout" class="readout" hidden></p>
 

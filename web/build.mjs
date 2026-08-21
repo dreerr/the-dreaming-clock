@@ -23,7 +23,7 @@ rmSync(out, { recursive: true, force: true });
 mkdirSync(out, { recursive: true });
 
 await build({
-  entryPoints: [join(src, "js/index.js"), join(src, "js/settings.js")],
+  entryPoints: [join(src, "js/index.js")],
   bundle: true,
   minify: true,
   format: "esm",
@@ -34,7 +34,7 @@ await build({
 });
 
 // HTML and CSS are copied through, minified only in the cheap, safe ways.
-for (const file of ["index.html", "settings.html"]) {
+for (const file of ["index.html"]) {
   const html = readFileSync(join(src, file), "utf8")
     .replace(/\n\s+/g, "\n")
     .trim();

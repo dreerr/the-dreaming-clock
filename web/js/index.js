@@ -1,9 +1,9 @@
 import { LedPreview, PreviewSocket } from "./preview.js";
 import { getLayout, wakeup } from "./api.js";
+import { initSettingsPanel, refreshSettings } from "./settings.js";
 
 const dot = document.getElementById("ws-dot");
 const readout = document.getElementById("readout");
-const calibrateButton = document.getElementById("calibrate-button");
 const clock = document.getElementById("preview");
 
 let readoutTimer = null;
@@ -58,27 +58,73 @@ async function start() {
     }
   });
 
-  // Calibration walks one lit LED along the strip. Watch the clock and the
-  // preview together: if a bar fills in the opposite direction on screen,
-  // adjust segmentIsReversed() in src/config.h and reflash.
+  // --- calibration ---------------------------------------------------------
+  // Lives in the panel's developer section. The reading goes next to the button
+  // rather than in the bottom line, so it is beside the control that produced
+  // it — and it stays visible on a phone, where the panel covers the bottom.
+  const calibrateButton = document.getElementById("calibrate-button");
+  const calibrateStatus = document.getElementById("calibrate-status");
   let calibrating = false;
+
   calibrateButton.addEventListener("click", () => {
     calibrating = !calibrating;
     socket.send(calibrating ? "calibrate on" : "calibrate off");
     calibrateButton.setAttribute("aria-pressed", String(calibrating));
-    say(calibrating ? "calibrating…" : "", { sticky: true });
+    calibrateButton.textContent = calibrating ? "Stop calibrating" : "Calibrate LED order";
+    calibrateStatus.textContent = calibrating ? "starting…" : "";
   });
 
   preview.onLitLed = (index) => {
     if (!calibrating || index < 0) return;
     const found = locateLed(layout, index);
-    say(
-      found
-        ? `LED ${index} · segment ${found.segment} · position ${found.offset}`
-        : `LED ${index}`,
-      { sticky: true },
-    );
+    calibrateStatus.textContent = found
+      ? `LED ${index} · segment ${found.segment} · position ${found.offset}`
+      : `LED ${index}`;
   };
+
+  // Leaving the panel while calibrating would strand the clock in it.
+  function stopCalibrating() {
+    if (!calibrating) return;
+    calibrating = false;
+    socket.send("calibrate off");
+    calibrateButton.setAttribute("aria-pressed", "false");
+    calibrateButton.textContent = "Calibrate LED order";
+    calibrateStatus.textContent = "";
+  }
+
+  // --- settings panel ------------------------------------------------------
+  // Opening it narrows the clock rather than covering it, so a brightness or
+  // mode change is visible on the preview while it is being made. The clock's
+  // ResizeObserver re-fits the canvases as the panel slides.
+  const panel = document.getElementById("panel");
+  const settingsToggle = document.getElementById("settings-toggle");
+  let panelReady = false;
+
+  function setPanel(open) {
+    document.body.dataset.panel = open ? "open" : "closed";
+    settingsToggle.setAttribute("aria-expanded", String(open));
+    panel.inert = !open;
+    if (!open) {
+      stopCalibrating();
+      return;
+    }
+    if (!panelReady) {
+      panelReady = true;
+      initSettingsPanel();
+    } else {
+      refreshSettings().catch(() => {});
+    }
+  }
+
+  setPanel(false);
+  settingsToggle.addEventListener("click", () =>
+    setPanel(document.body.dataset.panel !== "open"),
+  );
+  document.getElementById("panel-close").addEventListener("click", () => setPanel(false));
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && document.body.dataset.panel === "open") setPanel(false);
+  });
+
 }
 
 start().catch((error) => say(error.message, { error: true, sticky: true }));

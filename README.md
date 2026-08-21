@@ -119,11 +119,11 @@ node build.mjs              # rebuild web/ -> data/
 
 ### Main Page
 Just the clock: a live preview of every LED, full-bleed on black. Tap it to show
-the time. A live indicator, the calibration toggle and a link to the settings sit
-in the top-right corner.
+the time. A live indicator and the settings toggle sit in the top-right corner.
 
-### Settings Page (`/settings.html`)
-Same black, minimal language as the clock page.
+### Settings
+Slides in from the right; the clock shrinks beside it rather than being covered,
+so a brightness or mode change is visible on the preview while it is being made.
 - **Time** - Timezone (with DST), plus manual entry for offline use
 - **Display** - Mode, and brightness for time and dream separately
 - **Active Hours** - Schedule per weekday

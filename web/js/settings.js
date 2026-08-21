@@ -81,8 +81,9 @@ function toggleNetworkMode() {
 
 function toggleActiveHours() {
   const enabled = $("activeHoursEnabled").checked;
-  $("activeHoursConfig").style.opacity = enabled ? "1" : "0.35";
-  $("activeHoursConfig").style.pointerEvents = enabled ? "auto" : "none";
+  const config = $("activeHoursConfig");
+  config.dataset.enabled = String(enabled);
+  config.inert = !enabled;
 }
 
 function apply() {
@@ -131,7 +132,8 @@ function fillBrowserTime() {
   $("year").value = now.getFullYear();
 }
 
-document.addEventListener("DOMContentLoaded", () => {
+// Called once by the clock page when the settings panel is first opened.
+export function initSettingsPanel() {
   init().catch((error) => showStatus("time-status", false, `✗ ${error.message}`));
 
   $("activeHoursEnabled").addEventListener("change", toggleActiveHours);
@@ -223,4 +225,10 @@ document.addEventListener("DOMContentLoaded", () => {
       return result;
     }),
   );
-});
+}
+
+// Re-read the device each time the panel is opened, so it never shows stale
+// values after the clock has been changed from somewhere else.
+export async function refreshSettings() {
+  await reload();
+}
