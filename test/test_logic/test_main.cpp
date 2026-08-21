@@ -1,11 +1,13 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unity.h>
 
 #include "animation.h"
 #include "config.h"
 #include "dreams.h"
 #include "layout.h"
+#include "messages.h"
 #include "patterns.h"
 #include "schedule.h"
 
@@ -583,6 +585,194 @@ void test_envelopes_ignore_out_of_range_leds(void) {
   TEST_ASSERT_EQUAL_UINT8(0, bloomLevel(60, 10, 10));
 }
 
+// ---------------------------------------------------------------------------
+// messages
+// ---------------------------------------------------------------------------
+
+static Message makeMessage(const char *text, MessageEffect effect) {
+  Message m;
+  snprintf(m.text, sizeof(m.text), "%s", text);
+  m.effect = effect;
+  m.stepMs = 400;
+  return m;
+}
+
+// Render the whole animation as one string so the test reads like the display.
+static void windowsOf(const Message &m, char *out, size_t cap) {
+  size_t at = 0;
+  for (int s = 0; s < messageStepCount(m); s++) {
+    char w[NUM_DIGITS];
+    messageWindowAt(m, s, w);
+    for (int i = 0; i < NUM_DIGITS && at + 2 < cap; i++) {
+      out[at++] = w[i];
+    }
+    if (at + 2 < cap) out[at++] = '|';
+  }
+  out[at] = '\0';
+}
+
+void test_scroll_enters_right_and_leaves_left(void) {
+  Message m = makeMessage("AB", MessageEffect::SCROLL);
+  char got[128];
+  windowsOf(m, got, sizeof(got));
+  //         enters at the right ->                   <- fully gone
+  TEST_ASSERT_EQUAL_STRING("   A|  AB| AB |AB  |B   |    |", got);
+}
+
+void test_scroll_step_count_covers_entry_and_exit(void) {
+  TEST_ASSERT_EQUAL_INT(1 + NUM_DIGITS,
+                        messageStepCount(makeMessage("A", MessageEffect::SCROLL)));
+  TEST_ASSERT_EQUAL_INT(8 + NUM_DIGITS,
+                        messageStepCount(makeMessage("HELLOOOO", MessageEffect::SCROLL)));
+}
+
+void test_scroll_shows_every_character_at_every_position(void) {
+  Message m = makeMessage("XYZ", MessageEffect::SCROLL);
+  for (int c = 0; c < 3; c++) {
+    bool seenAt[NUM_DIGITS] = {false, false, false, false};
+    for (int s = 0; s < messageStepCount(m); s++) {
+      char w[NUM_DIGITS];
+      messageWindowAt(m, s, w);
+      for (int i = 0; i < NUM_DIGITS; i++) {
+        if (w[i] == m.text[c]) seenAt[i] = true;
+      }
+    }
+    for (int i = 0; i < NUM_DIGITS; i++) {
+      if (!seenAt[i]) {
+        char msg[64];
+        snprintf(msg, sizeof(msg), "'%c' never reached cell %d", m.text[c], i);
+        TEST_FAIL_MESSAGE(msg);
+      }
+    }
+  }
+}
+
+void test_appear_pages_four_at_a_time(void) {
+  Message m = makeMessage("ABCDEFG", MessageEffect::APPEAR);
+  TEST_ASSERT_EQUAL_INT(2, messageStepCount(m));
+  char got[64];
+  windowsOf(m, got, sizeof(got));
+  TEST_ASSERT_EQUAL_STRING("ABCD|EFG |", got);
+}
+
+void test_blink_pages_like_appear(void) {
+  Message m = makeMessage("HI", MessageEffect::BLINK);
+  TEST_ASSERT_EQUAL_INT(1, messageStepCount(m));
+  char w[NUM_DIGITS];
+  messageWindowAt(m, 0, w);
+  TEST_ASSERT_EQUAL_CHAR('H', w[0]);
+  TEST_ASSERT_EQUAL_CHAR('I', w[1]);
+  TEST_ASSERT_EQUAL_CHAR(' ', w[2]);
+}
+
+void test_exactly_four_characters_is_one_page(void) {
+  TEST_ASSERT_EQUAL_INT(1, messageStepCount(makeMessage("TIME", MessageEffect::APPEAR)));
+}
+
+void test_empty_text_has_no_steps(void) {
+  TEST_ASSERT_EQUAL_INT(0, messageStepCount(makeMessage("", MessageEffect::SCROLL)));
+  TEST_ASSERT_EQUAL_INT(0, messageStepCount(makeMessage("", MessageEffect::APPEAR)));
+}
+
+void test_overlong_text_is_truncated_not_overrun(void) {
+  char longText[MESSAGE_MAX_CHARS * 2];
+  for (size_t i = 0; i < sizeof(longText) - 1; i++) longText[i] = 'A';
+  longText[sizeof(longText) - 1] = '\0';
+  Message m = makeMessage(longText, MessageEffect::SCROLL);
+  // snprintf stopped at the buffer, so the length is capped.
+  TEST_ASSERT_EQUAL_INT(MESSAGE_MAX_CHARS + NUM_DIGITS, messageStepCount(m));
+  char w[NUM_DIGITS];
+  messageWindowAt(m, messageStepCount(m) - 1, w); // must not read past the end
+  TEST_ASSERT_EQUAL_CHAR(' ', w[NUM_DIGITS - 1]);
+}
+
+void test_blink_is_on_then_off_within_a_step(void) {
+  Message m = makeMessage("HI", MessageEffect::BLINK);
+  TEST_ASSERT_EQUAL_UINT8(255, messageLevelAt(m, 0));
+  TEST_ASSERT_EQUAL_UINT8(255, messageLevelAt(m, m.stepMs / 2 - 1));
+  TEST_ASSERT_EQUAL_UINT8(0, messageLevelAt(m, m.stepMs / 2 + 1));
+  TEST_ASSERT_EQUAL_UINT8(0, messageLevelAt(m, m.stepMs - 1));
+}
+
+void test_appear_fades_in_and_out(void) {
+  Message m = makeMessage("HI", MessageEffect::APPEAR);
+  TEST_ASSERT_EQUAL_UINT8(0, messageLevelAt(m, 0));
+  TEST_ASSERT_EQUAL_UINT8(255, messageLevelAt(m, m.stepMs / 2));
+  TEST_ASSERT_LESS_THAN_UINT8(60, messageLevelAt(m, m.stepMs - 1));
+}
+
+void test_scroll_holds_full_brightness(void) {
+  Message m = makeMessage("HI", MessageEffect::SCROLL);
+  for (uint32_t t = 0; t < m.stepMs; t += 20) {
+    TEST_ASSERT_EQUAL_UINT8(255, messageLevelAt(m, t));
+  }
+}
+
+// A message of nothing but unrenderable characters would be an invisible pause.
+void test_queue_rejects_text_with_nothing_renderable(void) {
+  messageClearAll();
+  TEST_ASSERT_FALSE(messageEnqueue(makeMessage("...", MessageEffect::SCROLL)));
+  TEST_ASSERT_FALSE(messageEnqueue(makeMessage("   ", MessageEffect::SCROLL)));
+  TEST_ASSERT_TRUE(messageEnqueue(makeMessage("A!", MessageEffect::SCROLL)));
+  messageClearAll();
+}
+
+void test_queue_is_bounded(void) {
+  messageClearAll();
+  for (int i = 0; i < MESSAGE_QUEUE_DEPTH; i++) {
+    TEST_ASSERT_TRUE(messageEnqueue(makeMessage("HI", MessageEffect::SCROLL)));
+  }
+  TEST_ASSERT_FALSE(messageEnqueue(makeMessage("HI", MessageEffect::SCROLL)));
+  TEST_ASSERT_EQUAL_INT(MESSAGE_QUEUE_DEPTH, messageQueued());
+  messageClearAll();
+  TEST_ASSERT_EQUAL_INT(0, messageQueued());
+}
+
+// The whole point of chaining: each message plays through, in order, once.
+void test_playback_runs_the_chain_then_finishes(void) {
+  messageClearAll();
+  Message a = makeMessage("AB", MessageEffect::SCROLL); // 6 steps
+  Message b = makeMessage("CD", MessageEffect::APPEAR); // 1 step
+  b.repeats = 2;
+  TEST_ASSERT_TRUE(messageEnqueue(a));
+  TEST_ASSERT_TRUE(messageEnqueue(b));
+
+  uint32_t now = 1000;
+  messageBegin(now);
+  TEST_ASSERT_TRUE(messagePlaying());
+
+  int guard = 0;
+  bool sawB = false;
+  while (messageUpdate(now) && guard++ < 100) {
+    now += a.stepMs;
+    if (strcmp(messageCurrentText(), "CD") == 0) sawB = true;
+  }
+  TEST_ASSERT_TRUE_MESSAGE(sawB, "never reached the second message");
+  TEST_ASSERT_FALSE(messagePlaying());
+  TEST_ASSERT_EQUAL_INT(0, messageQueued());
+  // 6 steps + 1 step x 2 repeats = 8 advances before it ends
+  TEST_ASSERT_EQUAL_INT(8, guard);
+}
+
+void test_effect_names_round_trip(void) {
+  MessageEffect e;
+  TEST_ASSERT_TRUE(messageEffectFromName("scroll", e));
+  TEST_ASSERT_EQUAL_INT((int)MessageEffect::SCROLL, (int)e);
+  TEST_ASSERT_TRUE(messageEffectFromName("blink", e));
+  TEST_ASSERT_EQUAL_INT((int)MessageEffect::BLINK, (int)e);
+  TEST_ASSERT_FALSE(messageEffectFromName("wobble", e));
+  TEST_ASSERT_EQUAL_STRING("appear", messageEffectName(MessageEffect::APPEAR));
+}
+
+void test_fill_names_round_trip(void) {
+  SegmentMode m;
+  TEST_ASSERT_TRUE(segmentModeFromName("sweep", m));
+  TEST_ASSERT_EQUAL_INT((int)SegmentMode::SWEEP, (int)m);
+  TEST_ASSERT_TRUE(segmentModeFromName("bloom", m));
+  TEST_ASSERT_FALSE(segmentModeFromName("nonsense", m));
+  TEST_ASSERT_EQUAL_STRING("gradient", segmentModeName(SegmentMode::RANDOM_GRADIENT));
+}
+
 int main(int, char **) {
   UNITY_BEGIN();
 
@@ -630,6 +820,23 @@ int main(int, char **) {
   RUN_TEST(test_bloom_grows_from_the_centre_to_the_ends);
   RUN_TEST(test_bloom_erases_from_the_centre_in_the_second_half);
   RUN_TEST(test_envelopes_have_no_visible_seams);
+
+  RUN_TEST(test_scroll_enters_right_and_leaves_left);
+  RUN_TEST(test_scroll_step_count_covers_entry_and_exit);
+  RUN_TEST(test_scroll_shows_every_character_at_every_position);
+  RUN_TEST(test_appear_pages_four_at_a_time);
+  RUN_TEST(test_blink_pages_like_appear);
+  RUN_TEST(test_exactly_four_characters_is_one_page);
+  RUN_TEST(test_empty_text_has_no_steps);
+  RUN_TEST(test_overlong_text_is_truncated_not_overrun);
+  RUN_TEST(test_blink_is_on_then_off_within_a_step);
+  RUN_TEST(test_appear_fades_in_and_out);
+  RUN_TEST(test_scroll_holds_full_brightness);
+  RUN_TEST(test_queue_rejects_text_with_nothing_renderable);
+  RUN_TEST(test_queue_is_bounded);
+  RUN_TEST(test_playback_runs_the_chain_then_finishes);
+  RUN_TEST(test_effect_names_round_trip);
+  RUN_TEST(test_fill_names_round_trip);
   RUN_TEST(test_sweep_lights_several_leds_at_once);
   RUN_TEST(test_ramp_up_is_monotonic_end_to_end);
   RUN_TEST(test_envelopes_ignore_out_of_range_leds);
