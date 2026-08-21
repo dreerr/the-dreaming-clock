@@ -244,6 +244,25 @@ void serializeState(JsonObject out) {
   network["ip"] = networkAddress();
 }
 
+void serializeLayout(JsonObject out) {
+  out["numLeds"] = NUM_LEDS;
+  out["numSegments"] = NUM_SEGMENTS;
+  out["digitSegments"] = NUM_DIGIT_SEGMENTS;
+  out["segmentsPerDigit"] = SEGMENTS_PER_DIGIT;
+  out["colonIndex"] = COLON_INDEX;
+  out["ledsPerSegment"] = LEDS_PER_SEGMENT;
+  out["colonLeds"] = COLON_LEDS;
+
+  // The explicit per-segment ranges are the point: consumers read the results
+  // of segmentLedStart() instead of reimplementing it.
+  JsonArray segments = out["segments"].to<JsonArray>();
+  for (int i = 0; i < NUM_SEGMENTS; i++) {
+    JsonObject seg = segments.add<JsonObject>();
+    seg["start"] = segmentLedStart(i);
+    seg["count"] = segmentLedCount(i);
+  }
+}
+
 CommandResult applyCommand(const char *key, JsonVariantConst value) {
   if (key == nullptr) {
     return fail("missing key");

@@ -86,6 +86,13 @@ void registerRoutes() {
 
   server.on("/api/state", HTTP_POST, handleStatePost, nullptr, collectBody);
 
+  // --- LED layout, so the preview does not duplicate the mapping ------------
+  server.on("/api/layout", HTTP_GET, [](AsyncWebServerRequest *request) {
+    JsonDocument doc;
+    serializeLayout(doc.to<JsonObject>());
+    sendJson(request, 200, doc);
+  });
+
   // --- timezone list, so the UI does not duplicate it -----------------------
   server.on("/api/timezones", HTTP_GET, [](AsyncWebServerRequest *request) {
     JsonDocument doc;

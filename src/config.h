@@ -1,6 +1,8 @@
 #pragma once
 #include <stdint.h>
 
+#include "layout.h"
+
 // ===========================================================================
 // Compile-time hardware and identity configuration.
 // ===========================================================================
@@ -24,37 +26,58 @@ constexpr int LED_DATA_PIN = 6;  // GPIO6 on ESP32-C3
 constexpr int LED_CLOCK_PIN = 7; // GPIO7 on ESP32-C3
 constexpr int FRAMES_PER_SECOND = 60;
 
-constexpr int NUM_LEDS = 282;
+// ---- The one knob -------------------------------------------------------
+// How many LEDs sit inside each digit bar, and inside each colon dot. Change
+// these and rebuild; everything below is derived, the static_asserts re-check
+// the mapping, and the web preview picks the new layout up from /api/layout
+// without needing to be regenerated.
+constexpr int LEDS_PER_SEGMENT = 10;
+constexpr int COLON_LEDS = 2;
+// -------------------------------------------------------------------------
+
 constexpr int NUM_DIGITS = 4;
 constexpr int SEGMENTS_PER_DIGIT = 7;
 constexpr int NUM_DIGIT_SEGMENTS = NUM_DIGITS * SEGMENTS_PER_DIGIT; // 28
 constexpr int COLON_INDEX = NUM_DIGIT_SEGMENTS;                     // 28
 constexpr int NUM_SEGMENTS = NUM_DIGIT_SEGMENTS + 1;                // 29
 
-constexpr int LEDS_PER_SEGMENT = 10;
-constexpr int COLON_LEDS = 2;
-constexpr int COLON_LED_START = 140;
-constexpr int MAX_SEG_LEDS = LEDS_PER_SEGMENT;
+constexpr int NUM_LEDS =
+    numLedsFor(NUM_DIGIT_SEGMENTS, LEDS_PER_SEGMENT, COLON_LEDS);
+constexpr int COLON_LED_START =
+    colonLedStartFor(NUM_DIGIT_SEGMENTS, LEDS_PER_SEGMENT);
 
-// The single source of truth for segment -> LED-strip mapping. The colon sits
-// physically in the middle of the strip, so every digit segment after it is
-// shifted by COLON_LEDS. Both the renderer and the web preview use these, so
-// the offset only exists in one place.
+// Sizes the per-segment buffers in Segment, so it has to cover the largest
+// segment — which is not necessarily a digit bar.
+constexpr int MAX_SEG_LEDS =
+    LEDS_PER_SEGMENT > COLON_LEDS ? LEDS_PER_SEGMENT : COLON_LEDS;
+
+// The single source of truth for segment -> LED-strip mapping. The web preview
+// reads the results of these over /api/layout rather than reimplementing them.
 constexpr int segmentLedStart(int seg) {
-  return seg == COLON_INDEX
-             ? COLON_LED_START
-             : (seg * LEDS_PER_SEGMENT >= COLON_LED_START
-                    ? seg * LEDS_PER_SEGMENT + COLON_LEDS
-                    : seg * LEDS_PER_SEGMENT);
+  return segmentLedStartFor(seg, NUM_DIGIT_SEGMENTS, LEDS_PER_SEGMENT,
+                            COLON_LEDS);
 }
 
 constexpr int segmentLedCount(int seg) {
-  return seg == COLON_INDEX ? COLON_LEDS : LEDS_PER_SEGMENT;
+  return segmentLedCountFor(seg, NUM_DIGIT_SEGMENTS, LEDS_PER_SEGMENT,
+                            COLON_LEDS);
 }
 
-static_assert(segmentLedStart(0) == 0, "first segment starts at 0");
-static_assert(segmentLedStart(13) == 130, "last segment before the colon");
-static_assert(segmentLedStart(14) == 142, "first segment after the colon");
+// These hold for any LED count, so they check the mapping rather than one
+// arithmetic result.
+static_assert(LEDS_PER_SEGMENT >= 1 && COLON_LEDS >= 1,
+              "every segment needs at least one LED");
+static_assert(NUM_DIGIT_SEGMENTS % 2 == 0,
+              "the colon splits the digits in half");
+static_assert(segmentLedStart(0) == 0, "the strip starts at the first segment");
+static_assert(segmentLedStart(NUM_DIGIT_SEGMENTS / 2 - 1) + LEDS_PER_SEGMENT ==
+                  COLON_LED_START,
+              "the last segment before the colon must end where it begins");
+static_assert(segmentLedStart(NUM_DIGIT_SEGMENTS / 2) ==
+                  COLON_LED_START + COLON_LEDS,
+              "the first segment after the colon must start past it");
+static_assert(segmentLedStart(COLON_INDEX) + COLON_LEDS <= NUM_LEDS,
+              "the colon must fit on the strip");
 static_assert(segmentLedStart(NUM_DIGIT_SEGMENTS - 1) + LEDS_PER_SEGMENT ==
                   NUM_LEDS,
               "segment mapping must cover the whole strip exactly");

@@ -12,6 +12,13 @@
 
 void serializeState(JsonObject out);
 
+// The physical LED layout: how many LEDs there are and which ones belong to
+// which segment. Static for a given build, but published rather than compiled
+// into the web bundle so that changing LEDS_PER_SEGMENT in config.h needs no
+// frontend regeneration — and so any other consumer of /ws/leds can interpret
+// the frames.
+void serializeLayout(JsonObject out);
+
 struct CommandResult {
   bool ok;
   const char *message;

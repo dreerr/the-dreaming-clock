@@ -1,7 +1,10 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <unity.h>
 
+#include "config.h"
 #include "dreams.h"
+#include "layout.h"
 #include "patterns.h"
 #include "schedule.h"
 
@@ -222,6 +225,112 @@ void test_next_word_avoids_immediate_repeat(void) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// segment -> LED mapping
+//
+// LEDS_PER_SEGMENT is a compile-time constant, so the firmware only ever sees
+// one value. These sweep the parameterised mapping across many, which is what
+// makes changing that constant safe: the invariants below are the only thing
+// the rest of the code relies on.
+// ---------------------------------------------------------------------------
+
+static void checkMappingIsSound(int digitSegments, int ledsPerSegment,
+                                int colonLeds) {
+  const int total = numLedsFor(digitSegments, ledsPerSegment, colonLeds);
+  const int segments = digitSegments + 1; // + colon
+
+  char msg[128];
+  snprintf(msg, sizeof(msg), "digits=%d leds=%d colon=%d", digitSegments,
+           ledsPerSegment, colonLeds);
+
+  // Every LED belongs to exactly one segment.
+  int *owner = (int *)malloc(sizeof(int) * total);
+  for (int i = 0; i < total; i++)
+    owner[i] = -1;
+
+  for (int seg = 0; seg < segments; seg++) {
+    const int start =
+        segmentLedStartFor(seg, digitSegments, ledsPerSegment, colonLeds);
+    const int count =
+        segmentLedCountFor(seg, digitSegments, ledsPerSegment, colonLeds);
+
+    TEST_ASSERT_GREATER_OR_EQUAL_INT_MESSAGE(0, start, msg);
+    TEST_ASSERT_GREATER_THAN_INT_MESSAGE(0, count, msg);
+    TEST_ASSERT_LESS_OR_EQUAL_INT_MESSAGE(total, start + count, msg);
+
+    for (int i = start; i < start + count; i++) {
+      TEST_ASSERT_EQUAL_INT_MESSAGE(-1, owner[i], msg); // no overlap
+      owner[i] = seg;
+    }
+  }
+
+  // No gaps.
+  for (int i = 0; i < total; i++) {
+    TEST_ASSERT_NOT_EQUAL_MESSAGE(-1, owner[i], msg);
+  }
+
+  // The strip starts at the first segment and ends at the last digit segment.
+  TEST_ASSERT_EQUAL_INT_MESSAGE(
+      0, segmentLedStartFor(0, digitSegments, ledsPerSegment, colonLeds), msg);
+  TEST_ASSERT_EQUAL_INT_MESSAGE(
+      total,
+      segmentLedStartFor(digitSegments - 1, digitSegments, ledsPerSegment,
+                         colonLeds) +
+          ledsPerSegment,
+      msg);
+
+  // The colon sits between the two halves of the display.
+  const int colonStart =
+      segmentLedStartFor(digitSegments, digitSegments, ledsPerSegment,
+                         colonLeds);
+  const int lastBefore =
+      segmentLedStartFor(digitSegments / 2 - 1, digitSegments, ledsPerSegment,
+                         colonLeds) +
+      ledsPerSegment;
+  const int firstAfter = segmentLedStartFor(digitSegments / 2, digitSegments,
+                                            ledsPerSegment, colonLeds);
+  TEST_ASSERT_EQUAL_INT_MESSAGE(lastBefore, colonStart, msg);
+  TEST_ASSERT_EQUAL_INT_MESSAGE(colonStart + colonLeds, firstAfter, msg);
+
+  free(owner);
+}
+
+void test_mapping_holds_for_every_led_count(void) {
+  for (int leds = 1; leds <= 32; leds++) {
+    for (int colon = 1; colon <= 4; colon++) {
+      checkMappingIsSound(28, leds, colon);
+    }
+  }
+}
+
+// Not the shipped shape, but the mapping should not secretly depend on 4x7.
+void test_mapping_holds_for_other_digit_counts(void) {
+  const int digitCounts[] = {2, 4, 6, 8};
+  for (int i = 0; i < 4; i++) {
+    checkMappingIsSound(digitCounts[i] * 7, 10, 2);
+  }
+}
+
+// The values config.h actually compiles with.
+void test_configured_layout_matches_the_hardware(void) {
+  TEST_ASSERT_EQUAL_INT(282, NUM_LEDS);
+  TEST_ASSERT_EQUAL_INT(29, NUM_SEGMENTS);
+  TEST_ASSERT_EQUAL_INT(140, COLON_LED_START);
+  TEST_ASSERT_EQUAL_INT(0, segmentLedStart(0));
+  TEST_ASSERT_EQUAL_INT(130, segmentLedStart(13));
+  TEST_ASSERT_EQUAL_INT(142, segmentLedStart(14));
+  TEST_ASSERT_EQUAL_INT(140, segmentLedStart(COLON_INDEX));
+  TEST_ASSERT_EQUAL_INT(COLON_LEDS, segmentLedCount(COLON_INDEX));
+  TEST_ASSERT_EQUAL_INT(LEDS_PER_SEGMENT, segmentLedCount(0));
+}
+
+// MAX_SEG_LEDS sizes Segment's buffers, so it has to cover the colon too.
+void test_segment_buffer_covers_the_largest_segment(void) {
+  for (int seg = 0; seg < NUM_SEGMENTS; seg++) {
+    TEST_ASSERT_LESS_OR_EQUAL_INT(MAX_SEG_LEDS, segmentLedCount(seg));
+  }
+}
+
 int main(int, char **) {
   UNITY_BEGIN();
 
@@ -249,6 +358,11 @@ int main(int, char **) {
   RUN_TEST(test_every_word_is_renderable);
   RUN_TEST(test_no_case_insensitive_duplicates);
   RUN_TEST(test_next_word_avoids_immediate_repeat);
+
+  RUN_TEST(test_mapping_holds_for_every_led_count);
+  RUN_TEST(test_mapping_holds_for_other_digit_counts);
+  RUN_TEST(test_configured_layout_matches_the_hardware);
+  RUN_TEST(test_segment_buffer_covers_the_largest_segment);
 
   return UNITY_END();
 }
