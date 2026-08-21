@@ -268,46 +268,147 @@ input[type="password"] {
 }
 
 
-/* --- Live LED preview ---------------------------------------------------- */
+/* ==========================================================================
+   The clock page (body.stage)
+   --------------------------------------------------------------------------
+   Deliberately bare: black, no chrome, the clock itself is the only content
+   and the only control. Scoped to .stage so the settings page keeps its own
+   look.
+   ========================================================================== */
 
-.preview-container {
-  background: #05050a;
-  border-radius: 16px;
-  padding: 16px;
-  margin: 20px 0;
+body.stage {
+  background: #000;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+  -webkit-tap-highlight-color: transparent;
 }
 
-.preview-stage {
+/* The clock fills the viewport and centres its canvases; the canvases
+   themselves are sized in JS so they always keep the artwork's aspect ratio. */
+.clock {
   position: relative;
+  display: block;
   width: 100%;
-  line-height: 0;
+  height: 100vh;
+  height: 100dvh;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  appearance: none;
+}
+
+.clock:focus-visible {
+  outline: 1px solid rgba(255, 255, 255, 0.25);
+  outline-offset: -4px;
 }
 
 .led-layer {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
   display: block;
-  width: 100%;
+  pointer-events: none;
 }
 
 /* The glow layer sits behind the sharp one. Blurring it in CSS hands the bloom
-   to the compositor, so it costs nothing per frame. Solid segment shapes bloom
-   far more than the point sources did, so this is softer and weaker. */
+   to the compositor, so it costs nothing per frame. */
 .led-glow {
-  position: absolute;
-  inset: 0;
   filter: blur(16px);
   opacity: 0.55;
 }
 
-.ws-status {
+/* --- Top-right controls -------------------------------------------------- */
+
+.topbar {
+  position: fixed;
+  top: 0;
+  right: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 18px 20px;
+  padding-top: max(18px, env(safe-area-inset-top));
+  padding-right: max(20px, env(safe-area-inset-right));
+}
+
+.live-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #2a2a2a;
+  transition: background 0.4s ease;
+}
+
+.live-dot.connected {
+  background: #22c55e;
+}
+
+.icon-button {
+  display: block;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #fff;
+  opacity: 0.45;
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+}
+
+.icon-button:hover,
+.icon-button:focus-visible {
+  opacity: 1;
+  outline: none;
+}
+
+.icon-button[aria-pressed="true"] {
+  opacity: 1;
+  color: #22c55e;
+}
+
+.icon-button svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+}
+
+.icon-button svg .filled {
+  fill: currentColor;
+}
+
+/* --- Transient line at the bottom ---------------------------------------- */
+
+.readout {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 2;
+  margin: 0;
+  padding: 18px;
+  padding-bottom: max(18px, env(safe-area-inset-bottom));
   text-align: center;
   font-size: 12px;
-  color: #888;
-  margin-top: 12px;
+  letter-spacing: 0.04em;
+  color: #666;
+  pointer-events: none;
 }
-.ws-status.connected { color: #4caf50; }
-.ws-status.disconnected { color: #f44336; }
 
-/* --- Layout helpers ------------------------------------------------------ */
+.readout.error {
+  color: #f87171;
+}
+
+/* --- Shared helpers still used by the settings page ---------------------- */
 
 .button-row {
   display: flex;
@@ -325,9 +426,6 @@ input[type="password"] {
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
-
-.calibration { margin-top: 8px; }
-.btn.active { background: #e94560; }
 
 hr {
   margin: 1rem 0;

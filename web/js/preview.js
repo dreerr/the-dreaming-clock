@@ -54,25 +54,80 @@ export class LedPreview {
     this.frame = null;
     this.dirty = false;
     this.onLitLed = null;
+    this.stage = container;
+    this.pendingResize = false;
 
     this.resize();
-    window.addEventListener("resize", () => this.resize());
+
+    // A ResizeObserver catches the container changing for any reason — window
+    // resize, orientation change, a phone's URL bar sliding away — not just
+    // window resize events. Work is coalesced into one frame so dragging a
+    // window edge cannot thrash the canvas allocation.
+    if (typeof ResizeObserver !== "undefined") {
+      new ResizeObserver(() => this.scheduleResize()).observe(container);
+    } else {
+      window.addEventListener("resize", () => this.scheduleResize());
+    }
+
+    // Moving the window between displays changes devicePixelRatio without
+    // changing the element's size, so the observer alone would miss it.
+    this.watchPixelRatio();
+
     requestAnimationFrame(() => this.draw());
   }
 
+  watchPixelRatio() {
+    if (typeof matchMedia !== "function") return;
+    const query = matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
+    const onChange = () => {
+      this.scheduleResize();
+      this.watchPixelRatio(); // the query is tied to the old ratio; re-arm it
+    };
+    if (query.addEventListener) {
+      query.addEventListener("change", onChange, { once: true });
+    }
+  }
+
+  scheduleResize() {
+    if (this.pendingResize) return;
+    this.pendingResize = true;
+    requestAnimationFrame(() => {
+      this.pendingResize = false;
+      this.resize();
+    });
+  }
+
   resize() {
-    const rect = this.glow.parentElement.getBoundingClientRect();
+    const availWidth = this.stage.clientWidth;
+    const availHeight = this.stage.clientHeight;
+    if (availWidth === 0 || availHeight === 0) return;
+
+    // Fill the width, but never overflow the height — a short, wide window
+    // would otherwise crop the clock instead of shrinking it.
+    const aspect = geometry.width / geometry.height;
+    let width = availWidth;
+    let height = width / aspect;
+    if (height > availHeight) {
+      height = availHeight;
+      width = height * aspect;
+    }
+
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    const width = rect.width;
-    const height = (width * geometry.height) / geometry.width;
+    const pixelWidth = Math.max(1, Math.round(width * dpr));
+    const pixelHeight = Math.max(1, Math.round(height * dpr));
 
     for (const canvas of [this.glow, this.core]) {
-      canvas.width = Math.round(width * dpr);
-      canvas.height = Math.round(height * dpr);
+      // Assigning width/height clears the canvas, so only touch it on a real
+      // change — otherwise every spurious observer callback drops a frame.
+      if (canvas.width !== pixelWidth || canvas.height !== pixelHeight) {
+        canvas.width = pixelWidth;
+        canvas.height = pixelHeight;
+      }
       canvas.style.width = `${width}px`;
       canvas.style.height = `${height}px`;
     }
-    this.scale = (width * dpr) / geometry.width;
+
+    this.scale = pixelWidth / geometry.width;
     this.dirty = true;
   }
 

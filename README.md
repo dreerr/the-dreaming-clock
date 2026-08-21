@@ -118,8 +118,9 @@ node build.mjs              # rebuild web/ -> data/
 ## 📱 Web Interface
 
 ### Main Page
-A live preview of all 282 LEDs streamed over WebSocket, a wakeup button, and the
-LED-order calibration tool.
+Just the clock: a live preview of every LED, full-bleed on black. Tap it to show
+the time. A live indicator, the calibration toggle and a link to the settings sit
+in the top-right corner.
 
 ### Settings Page (`/settings.html`)
 - **Time** - Timezone (with DST), plus manual time entry for offline use
