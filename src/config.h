@@ -63,6 +63,24 @@ constexpr int segmentLedCount(int seg) {
                             COLON_LEDS);
 }
 
+// Segments whose LEDs are wired opposite to the direction the artwork runs.
+// Measured with the calibration walk: within every digit, positions 0 (lower
+// left), 3 (middle) and 6 (upper right) fill backwards. The colon is never
+// reversed.
+//
+// This is a wiring fact, so it lives here and is published at /api/layout — the
+// web preview flips those bars rather than carrying its own copy of the list.
+//
+// The renderer itself does not compensate: every current segment mode is either
+// a solid colour or a random gradient, so the physical direction is invisible on
+// the clock. A future direction-dependent effect (a wipe, a sweep) would need
+// Segment to honour this too.
+constexpr bool segmentIsReversed(int seg) {
+  return seg < NUM_DIGIT_SEGMENTS &&
+         (seg % SEGMENTS_PER_DIGIT == 0 || seg % SEGMENTS_PER_DIGIT == 3 ||
+          seg % SEGMENTS_PER_DIGIT == 6);
+}
+
 // These hold for any LED count, so they check the mapping rather than one
 // arithmetic result.
 static_assert(LEDS_PER_SEGMENT >= 1 && COLON_LEDS >= 1,

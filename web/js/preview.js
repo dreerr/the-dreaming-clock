@@ -22,10 +22,6 @@ import geometry from "../geometry.json";
 // bloom is low-frequency, and it halves the gradient work per frame.
 // ---------------------------------------------------------------------------
 
-// Segments whose LED order runs opposite to the artwork's geometry. Filled in
-// from the calibration walk.
-const REVERSED_SEGMENTS = new Set([]);
-
 export class LedPreview {
   // `layout` is the device's /api/layout document.
   constructor(container, layout) {
@@ -134,7 +130,9 @@ export class LedPreview {
       if (sumR + sumG + sumB === 0) return; // dark segments are most of them
 
       const path = this.paths[index];
-      const [from, to] = REVERSED_SEGMENTS.has(index)
+      // Which end of a bar holds its first LED is a wiring fact the device
+      // reports; reversing simply flips the gradient.
+      const [from, to] = this.layout.segments[index].reversed
         ? [seg.axis[1], seg.axis[0]]
         : seg.axis;
 

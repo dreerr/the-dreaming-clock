@@ -260,6 +260,7 @@ void serializeLayout(JsonObject out) {
     JsonObject seg = segments.add<JsonObject>();
     seg["start"] = segmentLedStart(i);
     seg["count"] = segmentLedCount(i);
+    seg["reversed"] = segmentIsReversed(i);
   }
 }
 

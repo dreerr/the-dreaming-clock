@@ -41,7 +41,7 @@ async function start() {
 
   // Calibration walks one lit LED along the strip. Watch the clock and the
   // preview together: if a bar fills in the opposite direction on screen,
-  // add its segment number to REVERSED_SEGMENTS in preview.js.
+  // adjust segmentIsReversed() in src/config.h and reflash.
   let calibrating = false;
   calibrateButton.addEventListener("click", () => {
     calibrating = !calibrating;

@@ -34,8 +34,25 @@ dreamy-clock-esp32/
 
 All of this lives in `src/config.h`, including `segmentLedStart()` — the single
 definition of how the 29 segments map onto the strip. The colon sits physically
-in the middle, so digit segments after it are offset by two LEDs. Both the
-renderer and the web preview derive their mapping from that one function.
+in the middle, so digit segments after it are offset by the colon's LEDs.
+
+### Changing the LED count
+
+`LEDS_PER_SEGMENT` and `COLON_LEDS` in `src/config.h` are the only edit. Rebuild
+and flash the firmware; nothing else needs touching.
+
+- `NUM_LEDS`, `COLON_LED_START` and `MAX_SEG_LEDS` are derived, and the
+  `static_assert`s re-check that the mapping is contiguous and covers the strip
+  exactly. A count that does not work will fail the build, not the hardware.
+- The web preview reads the layout from **`GET /api/layout`** at page load, so
+  it adapts with no rebuild. `web/geometry.json` holds shapes only — a bar's
+  outline does not depend on how many LEDs are inside it.
+- `pio test -e native` sweeps the mapping across 1-32 LEDs per segment and 1-4
+  colon LEDs, which is what makes the knob safe to turn.
+
+Below about three LEDs per segment, `Segment::fillGradient()` falls back to a
+two-stop gradient (`src/segment.cpp`) — correct for the colon, and a graceful
+degradation for a very short bar.
 
 ---
 
@@ -48,6 +65,12 @@ module defines globals in its header, so include order does not matter.
 Compile-time constants: pins, LED counts, hostname, OTA password (from the
 `CLOCK_OTA_PASSWORD` build flag). `static_assert`s check that the segment→LED
 mapping covers the strip exactly.
+
+### `layout` — segment to LED mapping
+Parameterised `constexpr` maths (`segmentLedStartFor`, `numLedsFor`, …) that
+`config.h` binds to the configured counts. Kept separate and Arduino-free so the
+host tests can sweep every LED count in a single binary — a `constexpr` in
+`config.h` only ever has one value.
 
 ### `patterns` — 7-segment glyphs
 `glyphFor(char)` returns the bit pattern for a character; `isRenderable(char)`
@@ -162,6 +185,7 @@ integration plugs into.
 |-------|--------|-------------|
 | `/api/state` | GET | The complete device state |
 | `/api/state` | POST | Apply settings (JSON body) |
+| `/api/layout` | GET | Physical LED layout (see below) |
 | `/api/timezones` | GET | Supported timezone names |
 | `/api/wakeup` | POST | Show the time now |
 | `/*` | GET | Static files from LittleFS |
@@ -173,6 +197,12 @@ redirects to `/` for the captive portal.
 `serveStatic` transparently serves a pre-compressed `<file>.gz`, which is what
 the frontend build produces.
 
+`/api/layout` publishes the LED mapping — `ledsPerSegment`, `colonLeds`,
+`numLeds`, and an explicit `{start, count}` for each of the 29 segments. It
+exists so consumers read the results of `segmentLedStart()` rather than
+reimplementing it, which is what lets the count change without a frontend
+rebuild. Any external consumer of `/ws/leds` needs it too.
+
 Example patch:
 
 ```bash
@@ -183,9 +213,10 @@ curl -X POST http://the-dreaming-clock.local/api/state \
 
 ### `ws_preview` — live preview
 
-`/ws/leds`, binary, **846 bytes per frame** (282 LEDs × 3 bytes) at 25 FPS —
-the FastLED buffer sent verbatim. That is ~21 KB/s and *less* ESP work than the
-old per-segment averaging.
+`/ws/leds`, binary, `NUM_LEDS × 3` bytes per frame (846 at the shipped count) at
+25 FPS — the FastLED buffer sent verbatim. That is ~21 KB/s and *less* ESP work
+than the old per-segment averaging. The frame carries no header; `/api/layout`
+describes the mapping, so clients do not bake the count in.
 
 Frames are dropped when `availableForWriteAll()` says no. Without that a stalled
 client silently queues up to `WS_MAX_QUEUED_MESSAGES` (32 on ESP32) copies of
@@ -220,15 +251,21 @@ shipped payload from 34 KB to ~9 KB, and lets both pages share one API module.
 | `web/js/api.js` | `/api/state` wrapper |
 | `web/js/index.js` | Home page: preview, wake button, calibration |
 | `web/js/settings.js` | Settings page |
-| `web/geometry.json` | Per-LED (x, y), derived from the segment SVG |
+| `web/geometry.json` | Segment shapes and gradient axes (no LED counts) |
+| `web/clock.svg` | The artwork; source of truth for the shapes |
+| `scripts/make_geometry.py` | Regenerates `geometry.json` from the SVG |
 
 ### Calibrating LED order
 
-`geometry.json` says where each LED sits, but the SVG cannot say **which end of
-a bar is LED 0**. Press *Calibrate LED order* on the home page: one LED walks
-the strip while the readout names its segment and position. If a bar fills in
-the opposite direction on screen from the physical clock, add that segment
-number to `REVERSED_SEGMENTS` in `web/js/preview.js` and rebuild.
+`geometry.json` says where each bar is and `/api/layout` says which LEDs are in
+it, but only the hardware knows **which end of a bar is LED 0**. Press
+*Calibrate LED order* on the home page: one LED walks the strip while the
+readout names its segment and position. If a bar fills in the opposite direction
+on screen from the physical clock, adjust `segmentIsReversed()` in
+`src/config.h` and reflash — the preview reads it from `/api/layout`.
+
+On this build, positions 0 (lower left), 3 (middle) and 6 (upper right) run
+backwards on every digit, measured this way.
 
 ---
 
