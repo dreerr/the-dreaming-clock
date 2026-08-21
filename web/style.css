@@ -1,19 +1,29 @@
 /* ==========================================================================
    The Dreaming Clock
-   Black, hairlines, small dim labels, one green accent. The clock page is the
-   reference; the settings page is the same language with more to say.
+   Black, hairlines, one green accent. One page: the clock, with the settings
+   sliding in beside it.
+
+   Every foreground colour below clears WCAG AA (4.5:1) on black, and anything
+   that forms the edge of a control clears 3:1. The earlier palette did not —
+   the section headings sat at 3.1:1 and the field borders at 1.2:1.
    ========================================================================== */
 
 :root {
   --bg: #000;
-  --text: #e8e8e8;
-  --dim: #8a8a8a;
-  --faint: #5c5c5c;
-  --line: rgba(255, 255, 255, 0.1);
-  --line-strong: rgba(255, 255, 255, 0.28);
-  --field: #0d0d0d;
-  --accent: #22c55e;
-  --danger: #f87171;
+  --text: #f0f0f0;   /* 18.4:1 */
+  --dim: #b4b4b4;    /* 10.1:1 — field labels */
+  --faint: #909090;  /*  6.6:1 — section headings, notes, hints */
+  --accent: #34d058; /* 10.3:1 */
+  --danger: #fb8a8a; /*  9.1:1 */
+
+  --line: rgba(255, 255, 255, 0.12);  /* decorative rules between sections */
+  --edge: rgba(255, 255, 255, 0.38);  /* control boundaries — 3.4:1 */
+  --edge-strong: rgba(255, 255, 255, 0.72);
+  --field: #171717;
+
+  --panel-w: clamp(320px, 34vw, 430px);
+  --panel-h: 68dvh;
+  --slide: 380ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 * {
@@ -36,10 +46,11 @@ body {
    ========================================================================== */
 
 .topbar {
-  position: fixed;
+  position: absolute;
   top: 0;
   right: 0;
   z-index: 2;
+  transition: right var(--slide);
   display: flex;
   align-items: center;
   gap: 18px;
@@ -48,13 +59,14 @@ body {
   padding-right: max(20px, env(safe-area-inset-right));
 }
 
-/* On the settings page the bar sits over scrolling content, so it needs a
-   backdrop to stay legible. The clock page has nothing behind it. */
-body:not(.stage) .topbar {
-  left: 0;
-  justify-content: flex-end;
-  padding-bottom: 30px;
-  background: linear-gradient(#000 55%, rgba(0, 0, 0, 0));
+body[data-panel="open"] .topbar {
+  right: var(--panel-w);
+}
+
+@media (max-width: 760px) {
+  body[data-panel="open"] .topbar {
+    right: 0;
+  }
 }
 
 .live-dot {
@@ -77,7 +89,7 @@ body:not(.stage) .topbar {
   border: 0;
   background: none;
   color: #fff;
-  opacity: 0.45;
+  opacity: 0.7;
   cursor: pointer;
   transition: opacity 0.2s ease;
 }
@@ -119,24 +131,35 @@ body.stage {
   overflow: hidden;
 }
 
-/* The clock fills the viewport and centres its canvases; the canvases
-   themselves are sized in JS so they always keep the artwork's aspect ratio. */
-.clock {
+.app {
   position: relative;
-  display: block;
-  width: 100%;
   height: 100vh;
   height: 100dvh;
+  overflow: hidden;
+}
+
+/* The clock is inset-driven, so opening the panel shrinks it by animating one
+   edge. Its ResizeObserver re-fits the canvases as that happens, which is what
+   makes a setting's effect visible while it is being changed. */
+.clock {
+  position: absolute;
+  inset: 0;
+  display: block;
   margin: 0;
   padding: 0;
   border: 0;
   background: none;
   cursor: pointer;
   appearance: none;
+  transition: right var(--slide), bottom var(--slide);
+}
+
+body[data-panel="open"] .clock {
+  right: var(--panel-w);
 }
 
 .clock:focus-visible {
-  outline: 1px solid var(--line-strong);
+  outline: 1px solid var(--edge);
   outline-offset: -4px;
 }
 
@@ -156,19 +179,71 @@ body.stage {
   opacity: 0.55;
 }
 
+.panel {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: var(--panel-w);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: var(--bg);
+  border-left: 1px solid var(--line);
+  transform: translateX(100%);
+  transition: transform var(--slide);
+}
+
+body[data-panel="open"] .panel {
+  transform: none;
+}
+
+.panel-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  justify-content: flex-end;
+  padding: 18px 20px 24px;
+  background: linear-gradient(var(--bg) 60%, rgba(0, 0, 0, 0));
+}
+
+/* Below this the panel takes the bottom of the screen instead of the side, so
+   the clock stays legible on a phone. It still arrives from the right. */
+@media (max-width: 760px) {
+  body[data-panel="open"] .clock {
+    right: 0;
+    bottom: var(--panel-h);
+  }
+
+  .panel {
+    top: auto;
+    width: 100%;
+    height: var(--panel-h);
+    border-left: 0;
+    border-top: 1px solid var(--line);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .clock,
+  .panel {
+    transition: none;
+  }
+}
+
 .readout {
   position: fixed;
   left: 0;
   right: 0;
   bottom: 0;
-  z-index: 2;
+  z-index: 3;
   margin: 0;
   padding: 18px;
   padding-bottom: max(18px, env(safe-area-inset-bottom));
   text-align: center;
   font-size: 12px;
   letter-spacing: 0.04em;
-  color: #666;
+  color: var(--faint);
   pointer-events: none;
 }
 
@@ -181,10 +256,8 @@ body.stage {
    ========================================================================== */
 
 .sheet {
-  max-width: 560px;
-  margin: 0 auto;
-  padding: 84px 24px 96px;
-  padding-bottom: max(96px, env(safe-area-inset-bottom));
+  padding: 0 24px 64px;
+  padding-bottom: max(64px, env(safe-area-inset-bottom));
 }
 
 .sheet section {
@@ -276,7 +349,7 @@ select {
 
 input:focus,
 select:focus {
-  border-color: var(--line-strong);
+  border-color: var(--edge);
   outline: none;
 }
 
@@ -331,7 +404,7 @@ input[type="number"] {
 
 .btn {
   padding: 8px 18px;
-  border: 1px solid var(--line-strong);
+  border: 1px solid var(--edge);
   border-radius: 999px;
   background: none;
   color: var(--text);
@@ -353,15 +426,20 @@ input[type="number"] {
   color: var(--dim);
 }
 
+::placeholder {
+  color: var(--faint);
+  opacity: 1;
+}
+
 .btn.quiet:hover {
-  border-color: var(--line-strong);
+  border-color: var(--edge);
   color: var(--text);
 }
 
 /* Segmented control for the display mode. */
 .segmented {
   display: inline-flex;
-  border: 1px solid var(--line);
+  border: 1px solid var(--edge);
   border-radius: 999px;
   overflow: hidden;
 }
@@ -378,7 +456,7 @@ input[type="number"] {
 }
 
 .segmented button + button {
-  border-left: 1px solid var(--line);
+  border-left: 1px solid var(--edge);
 }
 
 .segmented button:hover {
@@ -386,7 +464,7 @@ input[type="number"] {
 }
 
 .segmented button[aria-pressed="true"] {
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.16);
   color: #fff;
 }
 
@@ -414,7 +492,7 @@ input[type="number"] {
   width: 38px;
   height: 22px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.3);
   transition: background 0.2s ease;
 }
 
@@ -447,9 +525,9 @@ input[type="number"] {
 input[type="range"] {
   flex: 1;
   min-width: 0;
-  height: 2px;
+  height: 3px;
   appearance: none;
-  background: rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.3);
   border-radius: 2px;
   cursor: pointer;
 }
@@ -506,7 +584,7 @@ input[type="range"]::-moz-range-thumb {
 
 .schedule td {
   padding: 5px 0;
-  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  border-top: 1px solid var(--line);
   color: var(--dim);
 }
 
@@ -523,6 +601,63 @@ input[type="range"]::-moz-range-thumb {
 
 #activeHoursConfig {
   transition: opacity 0.2s ease;
+}
+
+/* Disabled-looking, but still above the AA floor. */
+#activeHoursConfig[data-enabled="false"] {
+  opacity: 0.55;
+}
+
+/* --- Collapsible section -------------------------------------------------- */
+
+.disclosure summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  list-style: none;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--faint);
+  transition: color 0.15s ease;
+}
+
+.disclosure summary::-webkit-details-marker {
+  display: none;
+}
+
+.disclosure summary::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-right: 1.4px solid currentColor;
+  border-bottom: 1.4px solid currentColor;
+  transform: rotate(-45deg) translate(-1px, -1px);
+  transition: transform 0.2s ease;
+}
+
+.disclosure[open] summary::before {
+  transform: rotate(45deg) translate(-2px, -2px);
+}
+
+.disclosure summary:hover,
+.disclosure[open] summary {
+  color: var(--dim);
+}
+
+.disclosure > *:not(summary) {
+  margin-top: 18px;
+}
+
+code {
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--field);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.88em;
+  color: var(--text);
 }
 
 /* --- Inline save feedback ------------------------------------------------- */
