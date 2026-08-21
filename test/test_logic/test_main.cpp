@@ -708,12 +708,34 @@ void test_scroll_holds_full_brightness(void) {
   }
 }
 
-// A message of nothing but unrenderable characters would be an invisible pause.
-void test_queue_rejects_text_with_nothing_renderable(void) {
+// Spaces are blanks on the display, so they are content: "   2" means three
+// dark cells and a 2, and an all-blank entry is a beat between two messages.
+void test_spaces_are_preserved_not_trimmed(void) {
+  Message m = makeMessage("   2", MessageEffect::APPEAR);
+  char w[NUM_DIGITS];
+  messageWindowAt(m, 0, w);
+  TEST_ASSERT_EQUAL_CHAR(' ', w[0]);
+  TEST_ASSERT_EQUAL_CHAR(' ', w[1]);
+  TEST_ASSERT_EQUAL_CHAR(' ', w[2]);
+  TEST_ASSERT_EQUAL_CHAR('2', w[3]);
+
+  // and a trailing space keeps its cell rather than collapsing
+  Message t = makeMessage("2  ", MessageEffect::APPEAR);
+  messageWindowAt(t, 0, w);
+  TEST_ASSERT_EQUAL_CHAR('2', w[0]);
+  TEST_ASSERT_EQUAL_CHAR(' ', w[1]);
+
+  // scrolling a leading space delays the first character by one step
+  Message sc = makeMessage(" A", MessageEffect::SCROLL);
+  messageWindowAt(sc, 0, w);
+  TEST_ASSERT_EQUAL_CHAR(' ', w[NUM_DIGITS - 1]);
+  messageWindowAt(sc, 1, w);
+  TEST_ASSERT_EQUAL_CHAR('A', w[NUM_DIGITS - 1]);
+}
+
+void test_all_blank_text_is_a_pause_not_an_error(void) {
   messageClearAll();
-  TEST_ASSERT_FALSE(messageEnqueue(makeMessage("...", MessageEffect::SCROLL)));
-  TEST_ASSERT_FALSE(messageEnqueue(makeMessage("   ", MessageEffect::SCROLL)));
-  TEST_ASSERT_TRUE(messageEnqueue(makeMessage("A!", MessageEffect::SCROLL)));
+  TEST_ASSERT_TRUE(messageEnqueue(makeMessage("   ", MessageEffect::APPEAR)));
   messageClearAll();
 }
 
@@ -832,7 +854,8 @@ int main(int, char **) {
   RUN_TEST(test_blink_is_on_then_off_within_a_step);
   RUN_TEST(test_appear_fades_in_and_out);
   RUN_TEST(test_scroll_holds_full_brightness);
-  RUN_TEST(test_queue_rejects_text_with_nothing_renderable);
+  RUN_TEST(test_spaces_are_preserved_not_trimmed);
+  RUN_TEST(test_all_blank_text_is_a_pause_not_an_error);
   RUN_TEST(test_queue_is_bounded);
   RUN_TEST(test_playback_runs_the_chain_then_finishes);
   RUN_TEST(test_effect_names_round_trip);

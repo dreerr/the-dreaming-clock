@@ -558,6 +558,88 @@ input[type="range"]::-moz-range-thumb {
   font-variant-numeric: tabular-nums;
 }
 
+/* --- Colour picker -------------------------------------------------------- */
+
+/* The gradient is a plain HSL rainbow, which is close to but not exactly
+   FastLED's hue distribution — the live preview beside the panel shows the
+   truth, so approximate is fine for picking. */
+.hue-slider {
+  background: linear-gradient(
+    to right,
+    hsl(0, 100%, 50%), hsl(60, 100%, 50%), hsl(120, 100%, 50%),
+    hsl(180, 100%, 50%), hsl(240, 100%, 50%), hsl(300, 100%, 50%),
+    hsl(360, 100%, 50%)
+  );
+  height: 6px;
+}
+
+.swatch {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid var(--edge);
+}
+
+/* --- Message chain -------------------------------------------------------- */
+
+.chain {
+  margin: 18px 0 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--line);
+}
+
+.chain li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+  color: var(--dim);
+}
+
+.chain .step-no {
+  min-width: 1.5ch;
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.chain .chain-text {
+  flex: 1;
+  min-width: 0;
+  color: var(--text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  white-space: pre;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chain .chain-dot {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.chain button {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--faint);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.chain button:hover {
+  color: var(--danger);
+}
+
 /* --- Weekly schedule ------------------------------------------------------ */
 
 .schedule {

@@ -330,7 +330,7 @@ CommandResult enqueueMessages(JsonVariantConst body, JsonObject report) {
       }
       if (!messageEnqueue(message)) {
         return accepted > 0 ? ok("queue full, some messages dropped")
-                            : fail("queue full, or nothing renderable in text");
+                            : fail("queue is full");
       }
       reportUnrenderable(message, blanks);
       accepted++;
@@ -342,7 +342,7 @@ CommandResult enqueueMessages(JsonVariantConst body, JsonObject report) {
       return fail(error);
     }
     if (!messageEnqueue(message)) {
-      return fail("queue full, or nothing renderable in text");
+      return fail("queue is full");
     }
     reportUnrenderable(message, blanks);
     accepted++;

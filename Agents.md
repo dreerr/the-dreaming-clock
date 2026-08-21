@@ -190,7 +190,13 @@ including going back to off.
 
 The display is four seven-segment cells with no sub-character resolution, so a
 scroll steps the text through those cells one character at a time; the glide is
-the segments' own cross-fade. The step maths lives behind `messageStepCount()`,
+the segments' own cross-fade. Spaces are content — "   2" means three dark cells
+and a 2, and an all-blank message is a beat between two others.
+
+A segment only acts on a new probability when its cycle turns over, which is far
+too slow for text. `renderMessage()` therefore re-rolls every digit segment the
+moment the glyphs change; without that the first steps show whatever the
+previous roll left lit. The step maths lives behind `messageStepCount()`,
 `messageWindowAt()` and `messageLevelAt()`, kept Arduino-free and host-tested —
 "what do the four cells show at step k" is where the bugs are.
 

@@ -75,3 +75,7 @@ bool messageUpdate(uint32_t now);
 void messageWindow(char out[NUM_DIGITS]);
 uint8_t messageLevel(uint32_t now);
 const Message *messageCurrent();
+
+// Which step of the current message is showing. The renderer watches this to
+// know when the glyphs have changed and the segments must be re-rolled.
+int messageStepIndex();

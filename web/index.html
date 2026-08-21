@@ -211,7 +211,7 @@
             <p class="note">
               Interrupts whatever the clock is doing, plays, and hands the
               display back. Only letters and digits can be drawn on a
-              seven-segment cell.
+              seven-segment cell; spaces are kept as blanks.
             </p>
 
             <div class="row">
@@ -239,9 +239,15 @@
             </div>
 
             <div class="row slider-row">
+              <label for="msg-hue">Colour</label>
+              <input type="range" id="msg-hue" class="hue-slider" min="0" max="255" value="30" />
+              <span id="msg-swatch" class="swatch" aria-hidden="true"></span>
+            </div>
+
+            <div class="row slider-row">
               <label for="msg-step">Step</label>
-              <input type="range" id="msg-step" min="80" max="1200" step="20" value="320" />
-              <output id="msg-step-value">320</output>
+              <input type="range" id="msg-step" min="80" max="4000" step="20" value="300" />
+              <output id="msg-step-value">300</output>
             </div>
 
             <div class="row">
@@ -252,7 +258,11 @@
               </label>
             </div>
 
+            <!-- Chain: add several, then send them as one run. -->
+            <ol id="msg-chain" class="chain" hidden></ol>
+
             <div class="actions">
+              <button id="msg-add" class="btn quiet" type="button">Add to chain</button>
               <button id="msg-send" class="btn" type="button">Send</button>
               <button id="msg-clear" class="btn quiet" type="button" hidden>Stop</button>
               <span id="msg-status" class="status"></span>

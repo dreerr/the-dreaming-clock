@@ -2,7 +2,6 @@
 
 #include <string.h>
 
-#include "patterns.h"
 
 namespace {
 
@@ -128,16 +127,8 @@ bool messageEnqueue(const Message &message) {
   if (queueCount >= MESSAGE_QUEUE_DEPTH) {
     return false;
   }
-  bool anyRenderable = false;
-  for (int i = 0; message.text[i] != '\0' && i < MESSAGE_MAX_CHARS; i++) {
-    if (isRenderable(message.text[i])) {
-      anyRenderable = true;
-      break;
-    }
-  }
-  if (!anyRenderable) {
-    return false; // nothing but blanks would just be a pause
-  }
+  // Text of nothing but blanks is allowed: in a chain it is a deliberate beat
+  // between two messages. Empty text is refused where the message is parsed.
   queue[queueCount++] = message;
   return true;
 }
@@ -222,6 +213,8 @@ void messageWindow(char out[NUM_DIGITS]) {
   }
   messageWindowAt(*m, step, out);
 }
+
+int messageStepIndex() { return step; }
 
 uint8_t messageLevel(uint32_t now) {
   const Message *m = messageCurrent();

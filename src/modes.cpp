@@ -112,6 +112,7 @@ DisplayMode modeBeforeMessage = DisplayMode::DREAM;
 uint32_t messageEnteredAt = 0;
 bool messageLeaving = false;
 uint32_t messageLeavingAt = 0;
+int messageRenderedStep = -1;
 
 CHSV mainColor = CHSV(0, 255, 255);
 
@@ -318,6 +319,7 @@ void renderMessage(uint32_t now) {
   if (message == nullptr) {
     setAllDigits(0);
     segments[COLON_INDEX].probability = 0;
+    segments[COLON_INDEX].brightness = 0;
     return;
   }
 
@@ -347,6 +349,19 @@ void renderMessage(uint32_t now) {
     // A cross-fading step glides between glyphs; a hard step snaps.
     segment.fadeMs = message->crossfade ? message->stepMs / 2 : 0;
     segment.cycleMs = message->stepMs > 0 ? message->stepMs : 1;
+  }
+
+  // A segment only acts on a new probability when its cycle turns over, which
+  // is far too slow for text: the first steps would show whatever the previous
+  // roll happened to leave lit. Re-roll every segment the moment the glyphs
+  // change — probability is 255 or 0 here, so the roll is deterministic and the
+  // step lands exactly when it should.
+  const int step = messageStepIndex();
+  if (step != messageRenderedStep) {
+    messageRenderedStep = step;
+    for (int i = 0; i < NUM_DIGIT_SEGMENTS; i++) {
+      segments[i].restart(now);
+    }
   }
 
   // The colon has nothing to say during a message.
@@ -469,15 +484,18 @@ void updateMode(uint32_t now) {
   // is an explicit act, so it lights the display whatever the clock is doing.
   if (messageRequested) {
     messageRequested = false;
-    if (messageQueued() > 0 && mode != DisplayMode::MESSAGE) {
-      Serial.printf("[MODE] message (%d queued)\n", messageQueued());
-      modeBeforeMessage = mode;
-      mode = DisplayMode::MESSAGE;
-      messageEnteredAt = now;
+    if (messageQueued() > 0) {
+      if (mode != DisplayMode::MESSAGE) {
+        Serial.printf("[MODE] message (%d queued)\n", messageQueued());
+        modeBeforeMessage = mode;
+        mode = DisplayMode::MESSAGE;
+        messageEnteredAt = now;
+        messageRenderedStep = -1;
+      }
+      // Something arrived while the last one was bowing out — carry straight on
+      // rather than stranding it in the queue to replay with the next send.
       messageLeaving = false;
       messageBegin(now);
-      setAllMode(SegmentMode::CONSTANT, 400, 200);
-      restartAll(now);
     }
   }
 
