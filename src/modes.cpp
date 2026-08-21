@@ -56,6 +56,11 @@ constexpr uint16_t MOTION_CYCLE_MIN_MS = 11000;
 // How long a segment takes to hand over when it changes animation.
 constexpr uint16_t MODE_CROSSFADE_MS = 3000;
 
+// Settling for a word is staggered across the segments rather than done in one
+// frame — 29 bars all changing at the same instant reads as a jump however
+// smoothly each one is cross-faded.
+constexpr uint32_t SETTLE_STAGGER_MS = 70;
+
 constexpr uint16_t WAKEUP_FADE_MS = 1200;
 constexpr uint16_t TIME_NOT_SET_BLINK_MS = 2000;
 
@@ -112,6 +117,7 @@ uint8_t wakeBrightness() { return clockSettings.brightness; }
 // segment mid-animation.
 SegmentMode dreamModes[NUM_SEGMENTS];
 uint16_t dreamModeCycle[NUM_SEGMENTS];
+uint32_t settleStartedAt = 0;
 
 // Weighted towards the steady gradient so the established character stays
 // dominant and the motion is a seasoning rather than a light show. Only
@@ -123,6 +129,37 @@ SegmentMode rollDreamMode() {
     return SegmentMode::RANDOM_GRADIENT;
   }
   return r < 80 ? SegmentMode::SWEEP : SegmentMode::BLOOM;
+}
+
+// Each segment gets its own palette character, rather than every bar drawing
+// from one shared pool. The global spread decides how far a segment's centre
+// may wander from the theme; its own spread and stop count decide whether it
+// reads as one colour, a few related ones, or a rainbow.
+void rollSegmentPalette(Segment &segment, uint8_t themeHue, uint8_t themeSpread) {
+  segment.hueBase = themeHue + random8(themeSpread);
+
+  // The hues are picked at random *within* the spread, so the arc they actually
+  // cover is roughly spread x (stops-1)/(stops+1) — a two-stop bar from a wide
+  // range often still lands on two near-identical colours. The tiers below are
+  // set from what the strip measured, not from the nominal spread.
+  const uint8_t character = random8(100);
+  if (character < 30) {
+    segment.hueSpread = random8(8, 30); // near enough one colour
+    segment.gradientStops = random8(2, 4);
+  } else if (character < 75) {
+    segment.hueSpread = random8(60, 140); // a few clearly different colours
+    segment.gradientStops = random8(3, 6);
+  } else {
+    segment.hueSpread = random8(160, 255); // rainbow
+    segment.gradientStops = random8(4, 6);
+  }
+
+  // Signed, and never quite zero, so every gradient is going somewhere.
+  int16_t drift = random8(35, 130);
+  if (random8(2)) {
+    drift = -drift;
+  }
+  segment.driftPercent = static_cast<int8_t>(drift);
 }
 
 // A moving segment gets a longer, narrower cycle range so its animation reads
@@ -156,7 +193,11 @@ void startDreamWord(uint32_t now) {
   currentWord = nextDreamWord();
   showingWord = true;
   wordStartedAt = now;
-  randomiseDreamCycles();
+  // Deliberately does NOT re-randomise the cycles. Rewriting fadeMs for every
+  // segment mid-cycle moves each one's cross-fade position instantly, which
+  // snapped 15 bars to their targets at once the moment a word began — a
+  // 182/255 jump, measured. Segments already get their own cycle length when
+  // they roll a new mode.
   dreamWordChange.arm(now, DREAM_WORD_DISPLAY_MS);
   Serial.printf("[DREAM] Word: %s\n", currentWord);
 }
@@ -187,34 +228,44 @@ uint8_t wordProbabilityAt(uint32_t elapsed) {
 }
 
 void renderDream(uint32_t now, bool withWords) {
-  // The hue spread breathes between near-monochrome and the whole wheel over a
-  // few minutes. Holding it at a constant 48 is what made every segment look
-  // like every other one: fillGradient() picks all of its stops within this
-  // width of the base, so a narrow spread puts the entire display in one slice.
-  setAllHue(dreamHueBase(now), dreamHueSpread(now));
+  // The theme: a drifting hue, and a spread that breathes between
+  // near-monochrome and the whole wheel over a few minutes. Each segment picks
+  // its own centre within that spread when its cycle rolls, so the display is
+  // no longer one palette applied 29 times.
+  const uint8_t themeHue = dreamHueBase(now);
+  const uint8_t themeSpread = dreamHueSpread(now);
 
   const uint8_t wordProbability =
       (withWords && showingWord && currentWord != nullptr)
           ? wordProbabilityAt(now - wordStartedAt)
           : 0;
   const bool settle = wordProbability > DREAM_SETTLE_ABOVE;
+  if (settle && settleStartedAt == 0) {
+    settleStartedAt = now;
+  } else if (!settle) {
+    settleStartedAt = 0;
+  }
 
   for (int i = 0; i < NUM_SEGMENTS; i++) {
     Segment &segment = segments[i];
     segment.brightness = dreamBrightness();
 
-    // Pick a fresh animation whenever this segment starts a new cycle. The
-    // colon is two LEDs, where both moving envelopes degenerate.
+    // Pick a fresh animation and palette whenever this segment starts a new
+    // cycle. The colon is two LEDs, where both moving envelopes degenerate.
     if (segment.cycles() != dreamModeCycle[i]) {
       dreamModeCycle[i] = segment.cycles();
       dreamModes[i] = (i == COLON_INDEX) ? SegmentMode::RANDOM_GRADIENT
                                          : rollDreamMode();
       applyDreamMode(segment, settle ? SegmentMode::RANDOM_GRADIENT
                                      : dreamModes[i]);
-    } else if (settle && segment.mode != SegmentMode::RANDOM_GRADIENT) {
-      // Settling mid-cycle: hand over rather than cut.
-      segment.mode = SegmentMode::RANDOM_GRADIENT;
-      segment.restart(now);
+      rollSegmentPalette(segment, themeHue, themeSpread);
+      segment.refreshTarget(); // the target was built before the palette moved
+    } else if (settle && segment.mode != SegmentMode::RANDOM_GRADIENT &&
+               (now - settleStartedAt) >=
+                   static_cast<uint32_t>(i) * SETTLE_STAGGER_MS) {
+      // Hand over rather than cut, and one bar at a time.
+      segment.transitionTo(SegmentMode::RANDOM_GRADIENT, now,
+                           MODE_CROSSFADE_MS);
     }
   }
 

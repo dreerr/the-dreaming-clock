@@ -136,11 +136,17 @@ rather than a cut.
 
 ### `animation` — the maths behind all of it
 Waves, the dream palette and the spatial envelopes, kept Arduino-free so it is
-host-tested. `dreamHueSpread()` is the one that matters: `fillGradient()` picks
-every stop as `hueBase + random8(hueSpread)`, so that single number decides
-whether the whole display sits in one slice of the colour wheel or scatters
-across it. It breathes between the two over four minutes — holding it at a
-constant 48 is what made the clock permanently near-monochrome.
+host-tested. `dreamHueSpread()` breathes between near-monochrome and the whole
+wheel over four minutes; it sets how far a *segment's* hue centre may wander
+from the theme. Each segment then picks its own spread and stop count on top of
+that, so one bar reads as a single colour while its neighbour is a rainbow.
+
+The envelopes are checked for seams as well as shape: a test walks every phase
+of every envelope for every LED and fails on any step over 40/255, including
+across the cycle wrap. Bloom originally punched a full-depth notch into the
+middle of the bar the instant it turned from growing to erasing — visible on
+the strip as a jump of 148/255, invisible to a test that only looked at one
+phase at a time.
 
 ### `display` — glyphs onto segments
 `setChar`, `setWord`, `setNumber`, and `setWordOverNoise` — the last of which
