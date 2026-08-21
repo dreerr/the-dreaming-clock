@@ -4,34 +4,6 @@
 
 #include <string.h>
 
-namespace {
-const char *const kModeNames[] = {"constant", "pulse",    "blink",
-                                  "gradient", "sweep",    "bloom"};
-constexpr uint8_t kModeCount = sizeof(kModeNames) / sizeof(kModeNames[0]);
-}
-
-const char *segmentModeName(SegmentMode mode) {
-  return kModeNames[static_cast<uint8_t>(mode)];
-}
-
-bool segmentModeUsesGradient(SegmentMode mode) {
-  return mode == SegmentMode::RANDOM_GRADIENT || mode == SegmentMode::SWEEP ||
-         mode == SegmentMode::BLOOM;
-}
-
-bool segmentModeFromName(const char *name, SegmentMode &out) {
-  if (name == nullptr) {
-    return false;
-  }
-  for (uint8_t i = 0; i < kModeCount; i++) {
-    if (strcmp(name, kModeNames[i]) == 0) {
-      out = static_cast<SegmentMode>(i);
-      return true;
-    }
-  }
-  return false;
-}
-
 void Segment::attach(CRGB *strip, int start, int count) {
   strip_ = strip;
   start_ = start;

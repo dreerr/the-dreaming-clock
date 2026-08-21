@@ -3,6 +3,7 @@
 #include <stdint.h>
 
 #include "config.h"
+#include "segmentmode.h"
 
 // ===========================================================================
 // Segment — one 7-segment bar (or the colon), driven by probability.
@@ -19,27 +20,6 @@
 // since the cycle began. Rendering therefore cannot reset the animation clock,
 // which is what used to make crossfades freeze when a caller re-issued a colour
 // every frame.
-
-// Two families. The colour modes paint the flat `color`; the gradient modes
-// paint a fresh random gradient and differ only in the spatial envelope they
-// move across it. Mixing them across segments is what stops the display looking
-// like one animation played 29 times.
-enum class SegmentMode : uint8_t {
-  // Colour modes — flat `color`.
-  CONSTANT, // solid
-  PULSE,    // dims up and down over the cycle
-  BLINK,    // hard on for the first half of the cycle, off for the rest
-  // Gradient modes — a random gradient across the bar.
-  RANDOM_GRADIENT, // held for the cycle
-  SWEEP,           // a lit head runs end to end and back
-  BLOOM,           // a band grows from the centre out to both ends and back
-};
-
-// True for the modes that paint a gradient rather than the flat `color`.
-bool segmentModeUsesGradient(SegmentMode mode);
-
-const char *segmentModeName(SegmentMode mode);
-bool segmentModeFromName(const char *name, SegmentMode &out);
 
 class Segment {
 public:
