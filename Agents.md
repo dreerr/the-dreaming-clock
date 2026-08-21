@@ -110,7 +110,7 @@ the segment rolls against it to decide whether it lights up for the next cycle.
 | `probability` | 0 = never lit, 255 = always lit, in between = flickers in and out |
 | `cycleMs` | length of one animation cycle (1–15 s while dreaming) |
 | `fadeMs` | crossfade into the new cycle's target |
-| `mode` | `CONSTANT`, `RANDOM_GRADIENT`, `PULSE`, `BLINK` |
+| `mode` | colour: `CONSTANT`, `PULSE`, `BLINK` · gradient: `RANDOM_GRADIENT`, `SWEEP`, `BLOOM` |
 | `color`, `brightness` | for the non-gradient modes |
 | `hueBase`, `hueSpread` | hue range for `RANDOM_GRADIENT` |
 
@@ -125,6 +125,22 @@ Two methods, and the split between them matters:
 
 `probability == 255` is special-cased to mean *always*, because `random8() < 255`
 still fails one cycle in 256 and the clock display has to be steady.
+
+The modes come in two families. The **colour** modes paint the flat `color`; the
+**gradient** modes paint a fresh random gradient and differ only in the spatial
+envelope they move across it — `SWEEP` runs a soft comet end to end and back,
+`BLOOM` grows light from the centre to both ends and then wipes it away with
+darkness growing the same way. All the enveloped modes cross-fade in from
+whatever the previous cycle was showing, so changing animation is a hand-over
+rather than a cut.
+
+### `animation` — the maths behind all of it
+Waves, the dream palette and the spatial envelopes, kept Arduino-free so it is
+host-tested. `dreamHueSpread()` is the one that matters: `fillGradient()` picks
+every stop as `hueBase + random8(hueSpread)`, so that single number decides
+whether the whole display sits in one slice of the colour wheel or scatters
+across it. It breathes between the two over four minutes — holding it at a
+constant 48 is what made the clock permanently near-monochrome.
 
 ### `display` — glyphs onto segments
 `setChar`, `setWord`, `setNumber`, and `setWordOverNoise` — the last of which

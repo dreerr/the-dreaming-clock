@@ -3,6 +3,7 @@
 #include <Arduino.h>
 #include <FastLED.h>
 
+#include "animation.h"
 #include "clock_time.h"
 #include "config.h"
 #include "display.h"
@@ -32,11 +33,28 @@ constexpr uint32_t DREAM_WORD_PAUSE_MS = 30000;
 // How strongly the ambient noise flickers while no word is showing.
 constexpr uint8_t DREAM_NOISE_PROBABILITY = 150;
 
+// Above this word strength the display settles to steady gradients so the word
+// can be read. A word is only legible because its segments hold still; motion
+// resumes as it fades, which makes the stillness part of the effect rather than
+// a compromise.
+constexpr uint8_t DREAM_SETTLE_ABOVE = 120;
+
 // Per-segment cycle length while dreaming. The spread is the point: each
 // segment settles at its own pace, so a word assembles unevenly instead of
 // cross-fading in as a block.
-constexpr uint16_t DREAM_CYCLE_MIN_MS = 1000;
-constexpr uint16_t DREAM_CYCLE_MAX_MS = 15000;
+//
+// The floor was 1 s, which is what made the display twitchy — a segment could
+// re-roll its whole appearance every second. The moving modes get a higher
+// floor still: a sweep should drift across the bar, not dart across it.
+//
+// Nothing may exceed DREAM_CYCLE_MAX_MS, because the word plateau (18 s, see
+// above) has to outlast the slowest cycle for a word to fully form.
+constexpr uint16_t DREAM_CYCLE_MIN_MS = 4000;
+constexpr uint16_t DREAM_CYCLE_MAX_MS = 16000;
+constexpr uint16_t MOTION_CYCLE_MIN_MS = 11000;
+
+// How long a segment takes to hand over when it changes animation.
+constexpr uint16_t MODE_CROSSFADE_MS = 3000;
 
 constexpr uint16_t WAKEUP_FADE_MS = 1200;
 constexpr uint16_t TIME_NOT_SET_BLINK_MS = 2000;
@@ -85,13 +103,40 @@ uint32_t wordStartedAt = 0;
 const char *const kModeNames[] = {"off", "time-not-set", "dream", "pattern",
                                   "wakeup"};
 
-uint8_t driftingHue(uint32_t now) {
-  // One full trip around the colour wheel every ~100 seconds.
-  return static_cast<uint8_t>((now / 400) & 0xFF);
-}
-
 uint8_t dreamBrightness() { return clockSettings.dreamBrightness; }
 uint8_t wakeBrightness() { return clockSettings.brightness; }
+
+// Which animation each segment is currently running, and the cycle counter it
+// was chosen on. Re-rolling per cycle rather than per frame matters:
+// renderDream() runs 60x a second and must not keep re-deciding underneath a
+// segment mid-animation.
+SegmentMode dreamModes[NUM_SEGMENTS];
+uint16_t dreamModeCycle[NUM_SEGMENTS];
+
+// Weighted towards the steady gradient so the established character stays
+// dominant and the motion is a seasoning rather than a light show. Only
+// gradient modes appear here — PULSE and BLINK paint the flat `color`, which
+// dream mode never sets.
+SegmentMode rollDreamMode() {
+  const uint8_t r = random8(100);
+  if (r < 60) {
+    return SegmentMode::RANDOM_GRADIENT;
+  }
+  return r < 80 ? SegmentMode::SWEEP : SegmentMode::BLOOM;
+}
+
+// A moving segment gets a longer, narrower cycle range so its animation reads
+// as a drift; a still one keeps the wider range so the display stays uneven.
+void applyDreamMode(Segment &segment, SegmentMode mode) {
+  segment.mode = mode;
+  if (mode == SegmentMode::SWEEP || mode == SegmentMode::BLOOM) {
+    segment.cycleMs = random(MOTION_CYCLE_MIN_MS, DREAM_CYCLE_MAX_MS);
+    segment.fadeMs = MODE_CROSSFADE_MS;
+  } else {
+    segment.cycleMs = random(DREAM_CYCLE_MIN_MS, DREAM_CYCLE_MAX_MS);
+    segment.fadeMs = segment.cycleMs / 2;
+  }
+}
 
 void randomiseDreamCycles() {
   for (int i = 0; i < NUM_SEGMENTS; i++) {
@@ -142,19 +187,43 @@ uint8_t wordProbabilityAt(uint32_t elapsed) {
 }
 
 void renderDream(uint32_t now, bool withWords) {
-  setAllHue(driftingHue(now), 48);
+  // The hue spread breathes between near-monochrome and the whole wheel over a
+  // few minutes. Holding it at a constant 48 is what made every segment look
+  // like every other one: fillGradient() picks all of its stops within this
+  // width of the base, so a narrow spread puts the entire display in one slice.
+  setAllHue(dreamHueBase(now), dreamHueSpread(now));
+
+  const uint8_t wordProbability =
+      (withWords && showingWord && currentWord != nullptr)
+          ? wordProbabilityAt(now - wordStartedAt)
+          : 0;
+  const bool settle = wordProbability > DREAM_SETTLE_ABOVE;
+
   for (int i = 0; i < NUM_SEGMENTS; i++) {
-    segments[i].mode = SegmentMode::RANDOM_GRADIENT;
-    segments[i].brightness = dreamBrightness();
+    Segment &segment = segments[i];
+    segment.brightness = dreamBrightness();
+
+    // Pick a fresh animation whenever this segment starts a new cycle. The
+    // colon is two LEDs, where both moving envelopes degenerate.
+    if (segment.cycles() != dreamModeCycle[i]) {
+      dreamModeCycle[i] = segment.cycles();
+      dreamModes[i] = (i == COLON_INDEX) ? SegmentMode::RANDOM_GRADIENT
+                                         : rollDreamMode();
+      applyDreamMode(segment, settle ? SegmentMode::RANDOM_GRADIENT
+                                     : dreamModes[i]);
+    } else if (settle && segment.mode != SegmentMode::RANDOM_GRADIENT) {
+      // Settling mid-cycle: hand over rather than cut.
+      segment.mode = SegmentMode::RANDOM_GRADIENT;
+      segment.restart(now);
+    }
   }
 
-  if (!withWords || !showingWord || currentWord == nullptr) {
+  if (wordProbability == 0) {
     setAllDigits(DREAM_NOISE_PROBABILITY);
     segments[COLON_INDEX].probability = DREAM_NOISE_PROBABILITY / 3;
     return;
   }
 
-  const uint8_t wordProbability = wordProbabilityAt(now - wordStartedAt);
   // As the word firms up, the surrounding noise recedes — so the word
   // condenses out of the noise rather than being pasted over it.
   const uint8_t noise = scale8(DREAM_NOISE_PROBABILITY, 255 - wordProbability);
