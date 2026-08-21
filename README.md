@@ -10,7 +10,8 @@ A beautiful ESP32-C3-based 7-segment LED clock with web interface, real-time clo
 
 ## ✨ Features
 
-- **282 APA102 (Dotstar) LEDs** arranged as a 4-digit 7-segment display with colon
+- **282 APA102 (Dotstar) LEDs** arranged as a 4-digit 7-segment display with
+  colon — the per-segment count is one constant in `src/config.h`
 - **Probability-driven animation** — segments decide after each cycle whether to
   keep glowing, so words condense out of the noise instead of fading in
 - **Four light modes per segment** — constant, random gradient, pulse, blink
@@ -136,6 +137,7 @@ read and a single one to patch.
 |----------|--------|-------------|
 | `/api/state` | GET | Complete device state |
 | `/api/state` | POST | Apply settings (JSON body) |
+| `/api/layout` | GET | Physical LED layout (counts and per-segment ranges) |
 | `/api/timezones` | GET | Supported timezone names |
 | `/api/wakeup` | POST | Show the time now |
 | `/ws/leds` | WS | Live LED stream, 846 bytes/frame at 25 FPS |
