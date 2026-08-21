@@ -31,30 +31,41 @@ void Segment::attach(CRGB *strip, int start, int count) {
   memset(to_, 0, sizeof(to_));
 }
 
-void Segment::snapshotFrom() {
-  // Start the new cycle from whatever is actually on screen, so a cycle change
-  // never produces a visible jump.
-  for (int i = 0; i < count_; i++) {
-    from_[i] = strip_[start_ + i];
+void Segment::snapshotFrom(uint32_t now) {
+  // Start the new cycle from where this one had got to, so a cycle change never
+  // produces a visible jump.
+  //
+  // This recomputes the current value from from_/to_ rather than reading it
+  // back off the strip, because the strip holds brightness-scaled colours and
+  // these buffers are kept unscaled. Reading the strip back would fold the old
+  // brightness in permanently, and a brightness change would darken the
+  // outgoing colour instead of just rescaling it.
+  const uint32_t elapsed = now - cycleStart_;
+  if (mode == SegmentMode::CONSTANT || mode == SegmentMode::RANDOM_GRADIENT) {
+    const uint8_t amount = fadeAmount(elapsed);
+    for (int i = 0; i < count_; i++) {
+      from_[i] = blend(from_[i], to_[i], amount);
+    }
+    return;
   }
-}
-
-CRGB Segment::litColor() const {
-  CRGB c = color;
-  c.nscale8_video(brightness);
-  return c;
+  // PULSE and BLINK render a flat colour; carry it forward as it stands.
+  for (int i = 0; i < count_; i++) {
+    from_[i] = to_[i];
+  }
 }
 
 void Segment::fillGradient() {
   CHSV hsv[MAX_SEG_LEDS];
 
-  // Brightness varies a little across the bar so the gradient reads as depth
-  // rather than a flat wash.
-  const uint8_t spread = brightness / 4;
-  const uint8_t lo = brightness > spread ? brightness - spread : 0;
+  // Value varies a little across the bar so the gradient reads as depth rather
+  // than a flat wash. This is at full scale — `brightness` is applied when the
+  // segment renders, not when its target is built, so changing it is visible
+  // immediately instead of waiting for the next cycle.
+  constexpr uint8_t kSpread = 255 / 4;
 
   auto pick = [&]() {
-    return CHSV(hueBase + random8(hueSpread), 255, random8(lo, brightness));
+    return CHSV(hueBase + random8(hueSpread), 255,
+                random8(255 - kSpread, 255));
   };
 
   CHSV start = pick();
@@ -92,9 +103,8 @@ void Segment::buildTarget() {
   case SegmentMode::CONSTANT:
   case SegmentMode::PULSE:
   case SegmentMode::BLINK: {
-    const CRGB c = litColor();
     for (int i = 0; i < count_; i++) {
-      to_[i] = c;
+      to_[i] = color;
     }
     break;
   }
@@ -105,8 +115,8 @@ void Segment::advance(uint32_t now) {
   if (!isAttached()) {
     return;
   }
+  snapshotFrom(now); // must run before cycleStart_ moves
   cycleStart_ = now;
-  snapshotFrom();
 
   // The probability roll. random8() yields 0..255, so `random8() < 255` would
   // still fail once every 256 cycles — 255 is special-cased to mean "always"
@@ -153,7 +163,9 @@ void Segment::render(uint32_t now) {
   case SegmentMode::RANDOM_GRADIENT: {
     const uint8_t amount = fadeAmount(elapsed);
     for (int i = 0; i < count_; i++) {
-      strip_[start_ + i] = blend(from_[i], to_[i], amount);
+      CRGB c = blend(from_[i], to_[i], amount);
+      c.nscale8_video(brightness);
+      strip_[start_ + i] = c;
     }
     break;
   }
@@ -170,6 +182,7 @@ void Segment::render(uint32_t now) {
     const uint8_t level = lit_ ? quadwave8(phase) : 0;
     CRGB c = color;
     c.nscale8_video(scale8(level, brightness));
+
     for (int i = 0; i < count_; i++) {
       strip_[start_ + i] = c;
     }
@@ -178,7 +191,11 @@ void Segment::render(uint32_t now) {
 
   case SegmentMode::BLINK: {
     const bool on = lit_ && (elapsed * 2 < cycleMs);
-    const CRGB c = on ? litColor() : CRGB(CRGB::Black);
+    CRGB c = CRGB::Black;
+    if (on) {
+      c = color;
+      c.nscale8_video(brightness);
+    }
     for (int i = 0; i < count_; i++) {
       strip_[start_ + i] = c;
     }

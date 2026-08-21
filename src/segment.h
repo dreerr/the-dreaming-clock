@@ -38,7 +38,7 @@ public:
   uint16_t fadeMs = 2000;    // crossfade into the new cycle's target
   SegmentMode mode = SegmentMode::RANDOM_GRADIENT;
   CRGB color = CRGB::Black;  // CONSTANT / PULSE / BLINK
-  uint8_t brightness = 255;  // ceiling brightness when lit
+  uint8_t brightness = 255;  // applied at render time, so it responds at once
   uint8_t hueBase = 0;       // RANDOM_GRADIENT: centre of the hue range
   uint8_t hueSpread = 48;    // RANDOM_GRADIENT: width of the hue range
 
@@ -68,9 +68,8 @@ private:
   bool lit_ = false;
 
   void advance(uint32_t now);
-  void snapshotFrom();
+  void snapshotFrom(uint32_t now);
   void buildTarget();
   void fillGradient();
-  CRGB litColor() const;
   uint8_t fadeAmount(uint32_t elapsed) const;
 };
