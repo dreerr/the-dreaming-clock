@@ -7,10 +7,14 @@ import geometry from "../geometry.json";
 // triple per LED in strip order.
 //
 // Each segment is drawn as its exact shape from the original clock artwork,
-// filled with a linear gradient whose stops are that segment's ten LED colours
-// laid along its long axis. So the form is the real segment, while the colour
-// still carries per-LED detail — which is what an APA102 bar diffused behind a
-// panel actually looks like.
+// filled with a linear gradient whose stops are that segment's LED colours laid
+// along its long axis. So the form is the real segment, while the colour still
+// carries per-LED detail — which is what an APA102 bar diffused behind a panel
+// actually looks like.
+//
+// Shapes come from geometry.json (the artwork) and the LED ranges come from the
+// device's /api/layout. Keeping those apart is what lets LEDS_PER_SEGMENT
+// change in the firmware without regenerating anything here.
 //
 // Two stacked canvases: a sharp one, and a CSS-blurred one underneath for the
 // bloom. The blur is a compositor filter, so it costs nothing per frame. The
@@ -18,16 +22,15 @@ import geometry from "../geometry.json";
 // bloom is low-frequency, and it halves the gradient work per frame.
 // ---------------------------------------------------------------------------
 
-const COLON_INDEX = 28;
-
-// Segments whose LED order runs opposite to the artwork's geometry. The SVG
-// cannot say which end of a bar is LED 0 — run the calibration walk (the button
-// under the preview) and add any segment that fills backwards. Reversing a
-// segment simply flips its gradient direction.
+// Segments whose LED order runs opposite to the artwork's geometry. Filled in
+// from the calibration walk.
 const REVERSED_SEGMENTS = new Set([]);
 
 export class LedPreview {
-  constructor(container) {
+  // `layout` is the device's /api/layout document.
+  constructor(container, layout) {
+    this.layout = layout;
+    this.frameBytes = layout.numLeds * 3;
     this.glow = document.createElement("canvas");
     this.core = document.createElement("canvas");
     this.glow.className = "led-layer led-glow";
@@ -77,8 +80,20 @@ export class LedPreview {
     this.dirty = true;
   }
 
-  // `data` is a Uint8Array of NUM_LEDS * 3 bytes.
+  // `data` is a Uint8Array of numLeds * 3 bytes.
   update(data) {
+    // A page left open across a firmware change with a different LED count
+    // would otherwise index past the end and draw nonsense.
+    if (data.length !== this.frameBytes) {
+      if (!this.warnedAboutSize) {
+        this.warnedAboutSize = true;
+        console.warn(
+          `LED frame is ${data.length} bytes, expected ${this.frameBytes}. ` +
+            "Reload to pick up the current layout.",
+        );
+      }
+      return;
+    }
     this.frame = data;
     this.dirty = true;
   }
@@ -101,18 +116,19 @@ export class LedPreview {
     let brightestValue = 0;
 
     geometry.segments.forEach((seg, index) => {
+      const { start, count } = this.layout.segments[index];
       let sumR = 0;
       let sumG = 0;
       let sumB = 0;
-      for (let i = 0; i < seg.leds; i++) {
-        const o = (seg.start + i) * 3;
+      for (let i = 0; i < count; i++) {
+        const o = (start + i) * 3;
         sumR += frame[o];
         sumG += frame[o + 1];
         sumB += frame[o + 2];
         const total = frame[o] + frame[o + 1] + frame[o + 2];
         if (total > brightestValue) {
           brightestValue = total;
-          brightest = seg.start + i;
+          brightest = start + i;
         }
       }
       if (sumR + sumG + sumB === 0) return; // dark segments are most of them
@@ -122,35 +138,49 @@ export class LedPreview {
         ? [seg.axis[1], seg.axis[0]]
         : seg.axis;
 
-      // LED i sits at (i + 0.5) / leds along the bar. Canvas clamps to the end
+      // LED i sits at (i + 0.5) / count along the bar. Canvas clamps to the end
       // stops beyond that range, so the tapered tips take the end LEDs' colour.
       const gradient = coreCtx.createLinearGradient(from[0], from[1], to[0], to[1]);
-      for (let i = 0; i < seg.leds; i++) {
-        const o = (seg.start + i) * 3;
+      for (let i = 0; i < count; i++) {
+        const o = (start + i) * 3;
         gradient.addColorStop(
-          (i + 0.5) / seg.leds,
+          (i + 0.5) / count,
           `rgb(${frame[o]},${frame[o + 1]},${frame[o + 2]})`,
         );
       }
       coreCtx.fillStyle = gradient;
       coreCtx.fill(path);
 
-      const n = seg.leds;
-      glowCtx.fillStyle = `rgb(${(sumR / n) | 0},${(sumG / n) | 0},${(sumB / n) | 0})`;
+      glowCtx.fillStyle =
+        `rgb(${(sumR / count) | 0},${(sumG / count) | 0},${(sumB / count) | 0})`;
       glowCtx.fill(path);
     });
 
-    // Colon: one LED per dot, so a flat fill each.
+    // Colon: the artwork has two dots. If the hardware puts more than one LED
+    // in the colon segment, each dot averages its half.
+    const colon = this.layout.segments[this.layout.colonIndex];
+    const perDot = Math.max(1, Math.floor(colon.count / geometry.colon.dots.length));
     geometry.colon.dots.forEach((_, dot) => {
-      const o = (geometry.colon.start + dot) * 3;
-      const r = frame[o];
-      const g = frame[o + 1];
-      const b = frame[o + 2];
-      if (r + g + b === 0) return;
-      if (r + g + b > brightestValue) {
-        brightestValue = r + g + b;
-        brightest = geometry.colon.start + dot;
+      const first = colon.start + Math.min(dot * perDot, colon.count - 1);
+      const n = Math.min(perDot, colon.start + colon.count - first);
+      let r = 0;
+      let g = 0;
+      let b = 0;
+      for (let i = 0; i < n; i++) {
+        const o = (first + i) * 3;
+        r += frame[o];
+        g += frame[o + 1];
+        b += frame[o + 2];
+        const total = frame[o] + frame[o + 1] + frame[o + 2];
+        if (total > brightestValue) {
+          brightestValue = total;
+          brightest = first + i;
+        }
       }
+      r = (r / n) | 0;
+      g = (g / n) | 0;
+      b = (b / n) | 0;
+      if (r + g + b === 0) return;
       const fill = `rgb(${r},${g},${b})`;
       coreCtx.fillStyle = fill;
       coreCtx.fill(this.colonPaths[dot]);

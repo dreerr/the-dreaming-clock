@@ -26,6 +26,15 @@ export async function wakeup() {
   return response.json();
 }
 
+// The physical LED layout: how many LEDs and which belong to which segment.
+// Comes from the device rather than the bundle, so changing LEDS_PER_SEGMENT in
+// the firmware needs no frontend rebuild.
+export async function getLayout() {
+  const response = await fetch("/api/layout");
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  return response.json();
+}
+
 export async function getTimezones() {
   const response = await fetch("/api/timezones");
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
