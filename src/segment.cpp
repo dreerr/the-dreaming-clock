@@ -1,20 +1,29 @@
 #include "segment.h"
 
+#include "animation.h"
+
 #include <string.h>
 
 namespace {
-const char *const kModeNames[] = {"constant", "gradient", "pulse", "blink"};
+const char *const kModeNames[] = {"constant", "pulse",    "blink",
+                                  "gradient", "sweep",    "bloom"};
+constexpr uint8_t kModeCount = sizeof(kModeNames) / sizeof(kModeNames[0]);
 }
 
 const char *segmentModeName(SegmentMode mode) {
   return kModeNames[static_cast<uint8_t>(mode)];
 }
 
+bool segmentModeUsesGradient(SegmentMode mode) {
+  return mode == SegmentMode::RANDOM_GRADIENT || mode == SegmentMode::SWEEP ||
+         mode == SegmentMode::BLOOM;
+}
+
 bool segmentModeFromName(const char *name, SegmentMode &out) {
   if (name == nullptr) {
     return false;
   }
-  for (uint8_t i = 0; i < 4; i++) {
+  for (uint8_t i = 0; i < kModeCount; i++) {
     if (strcmp(name, kModeNames[i]) == 0) {
       out = static_cast<SegmentMode>(i);
       return true;
@@ -41,6 +50,7 @@ void Segment::snapshotFrom(uint32_t now) {
   // brightness in permanently, and a brightness change would darken the
   // outgoing colour instead of just rescaling it.
   const uint32_t elapsed = now - cycleStart_;
+
   if (mode == SegmentMode::CONSTANT || mode == SegmentMode::RANDOM_GRADIENT) {
     const uint8_t amount = fadeAmount(elapsed);
     for (int i = 0; i < count_; i++) {
@@ -48,9 +58,37 @@ void Segment::snapshotFrom(uint32_t now) {
     }
     return;
   }
-  // PULSE and BLINK render a flat colour; carry it forward as it stands.
+
+  if (mode == SegmentMode::BLINK) {
+    const bool on = elapsed * 2 < cycleMs;
+    for (int i = 0; i < count_; i++) {
+      from_[i] = on ? to_[i] : CRGB(CRGB::Black);
+    }
+    return;
+  }
+
+  // The enveloped modes: capture what the envelope was actually showing, so the
+  // next cycle cross-fades out of the real picture rather than snapping from a
+  // target the viewer never saw.
+  const uint8_t phase = phaseAt(elapsed);
   for (int i = 0; i < count_; i++) {
-    from_[i] = to_[i];
+    CRGB c = to_[i];
+    c.nscale8_video(envelopeAt(phase, i));
+    from_[i] = c;
+  }
+}
+
+// Brightness of LED `index` under this mode's envelope at `phase`.
+uint8_t Segment::envelopeAt(uint8_t phase, int index) const {
+  switch (mode) {
+  case SegmentMode::SWEEP:
+    return sweepLevel(phase, index, count_);
+  case SegmentMode::BLOOM:
+    return bloomLevel(phase, index, count_);
+  case SegmentMode::PULSE:
+    return quadWave(phase);
+  default:
+    return 255;
   }
 }
 
@@ -96,18 +134,12 @@ void Segment::buildTarget() {
     return;
   }
 
-  switch (mode) {
-  case SegmentMode::RANDOM_GRADIENT:
+  if (segmentModeUsesGradient(mode)) {
     fillGradient();
-    break;
-  case SegmentMode::CONSTANT:
-  case SegmentMode::PULSE:
-  case SegmentMode::BLINK: {
-    for (int i = 0; i < count_; i++) {
-      to_[i] = color;
-    }
-    break;
+    return;
   }
+  for (int i = 0; i < count_; i++) {
+    to_[i] = color;
   }
 }
 
@@ -117,6 +149,7 @@ void Segment::advance(uint32_t now) {
   }
   snapshotFrom(now); // must run before cycleStart_ moves
   cycleStart_ = now;
+  cycles_++;
 
   // The probability roll. random8() yields 0..255, so `random8() < 255` would
   // still fail once every 256 cycles — 255 is special-cased to mean "always"
@@ -141,6 +174,15 @@ void Segment::tick(uint32_t now) {
   if (now - cycleStart_ >= cycleMs) {
     advance(now);
   }
+}
+
+// Position within the cycle, 0..255.
+uint8_t Segment::phaseAt(uint32_t elapsed) const {
+  if (cycleMs == 0) {
+    return 0;
+  }
+  const uint32_t p = (elapsed * 255UL) / cycleMs;
+  return p >= 255 ? 255 : static_cast<uint8_t>(p);
 }
 
 uint8_t Segment::fadeAmount(uint32_t elapsed) const {
@@ -170,20 +212,19 @@ void Segment::render(uint32_t now) {
     break;
   }
 
-  case SegmentMode::PULSE: {
-    // A full dim-up and dim-down across one cycle. quadwave8 starts and ends at
-    // zero, so consecutive cycles join without a seam and no crossfade is
-    // needed.
-    uint8_t phase = 0;
-    if (cycleMs > 0) {
-      const uint32_t p = (elapsed * 255UL) / cycleMs;
-      phase = p >= 255 ? 255 : static_cast<uint8_t>(p);
-    }
-    const uint8_t level = lit_ ? quadwave8(phase) : 0;
-    CRGB c = color;
-    c.nscale8_video(scale8(level, brightness));
-
+  // The enveloped modes. Each paints its target through a moving envelope and
+  // cross-fades in from whatever the previous cycle was showing, so switching
+  // animation mid-stream is a hand-over rather than a cut.
+  case SegmentMode::PULSE:
+  case SegmentMode::SWEEP:
+  case SegmentMode::BLOOM: {
+    const uint8_t phase = phaseAt(elapsed);
+    const uint8_t entry = fadeAmount(elapsed);
     for (int i = 0; i < count_; i++) {
+      CRGB target = to_[i];
+      target.nscale8_video(envelopeAt(phase, i));
+      CRGB c = blend(from_[i], target, entry);
+      c.nscale8_video(brightness);
       strip_[start_ + i] = c;
     }
     break;
