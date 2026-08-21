@@ -19,7 +19,14 @@ namespace {
 
 constexpr uint32_t WAKEUP_DURATION_MS = 15000;
 
-constexpr uint32_t DREAM_WORD_DISPLAY_MS = 15000;
+// A word has to outlast the slowest segment cycle. Segments only re-roll their
+// probability at a cycle boundary, so with cycles up to DREAM_CYCLE_MAX_MS the
+// display lags the probability ramp by up to that much. Measured on hardware: a
+// 15 s window only reached full contrast at t=13.6 s, just as it was ending.
+// The plateau below is therefore longer than DREAM_CYCLE_MAX_MS, which gives
+// every segment time to roll at least once while the word is at full strength.
+constexpr uint32_t DREAM_WORD_DISPLAY_MS = 30000;
+constexpr uint32_t DREAM_WORD_RAMP_PERCENT = 20; // -> 6 s in, 18 s hold, 6 s out
 constexpr uint32_t DREAM_WORD_PAUSE_MS = 30000;
 
 // How strongly the ambient noise flickers while no word is showing.
@@ -119,7 +126,7 @@ void endDreamWord(uint32_t now) {
 
 // Ramp: fade in over the first 30%, hold, fade out over the last 30%.
 uint8_t wordProbabilityAt(uint32_t elapsed) {
-  const uint32_t ramp = DREAM_WORD_DISPLAY_MS * 3 / 10;
+  const uint32_t ramp = DREAM_WORD_DISPLAY_MS * DREAM_WORD_RAMP_PERCENT / 100;
   if (elapsed >= DREAM_WORD_DISPLAY_MS) {
     return 0;
   }
