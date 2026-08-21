@@ -169,12 +169,33 @@ comma once concatenated two words into one).
 | `DREAM` | Drifting noise with words condensing out of it |
 | `PATTERN` | Drifting noise, no words |
 | `WAKEUP` | The time, shown solidly for 15 s |
+| `MESSAGE` | A queued message, playing over everything else |
 
 Timers are three `Deadline` structs — a rollover-safe one-shot each for the
 sleep timer, the auto-wakeup and the dream-word cycle. They replaced an external
 `Timer` library that was unpinned, GPL-licensed, and handed out slot indices
 that went stale after firing. `updateMode()` services them **in every mode**,
 including `OFF`, so a wakeup scheduled during off-hours is not left pending.
+
+### `messages` — text on demand
+
+A queue of up to eight messages, held in RAM: a message is a moment, not a
+setting. Each carries its own effect (`scroll`, `appear`, `blink`), fill (any
+`SegmentMode`), hue, step length, repeat count and whether steps glide or snap.
+
+`MESSAGE` is tested **first** in `updateMode()`, before the time-not-set and
+active-hours branches — a message is an explicit act, so it lights the display
+whatever the clock is doing, then hands it back to whatever it interrupted,
+including going back to off.
+
+The display is four seven-segment cells with no sub-character resolution, so a
+scroll steps the text through those cells one character at a time; the glide is
+the segments' own cross-fade. The step maths lives behind `messageStepCount()`,
+`messageWindowAt()` and `messageLevelAt()`, kept Arduino-free and host-tested —
+"what do the four cells show at step k" is where the bugs are.
+
+Dimming in and out rides on segment brightness, which is applied at render time,
+so the ramp is immediate rather than waiting for a cycle boundary.
 
 ### `clock_time` — time
 
@@ -210,6 +231,8 @@ integration plugs into.
 | `/api/layout` | GET | Physical LED layout (see below) |
 | `/api/timezones` | GET | Supported timezone names |
 | `/api/wakeup` | POST | Show the time now |
+| `/api/message` | POST | Queue one message, or an array played in order |
+| `/api/message` | DELETE | Cancel the queue and hand the display back |
 | `/*` | GET | Static files from LittleFS |
 
 Unknown `/api/*` paths return **404**, not a redirect to the UI — an

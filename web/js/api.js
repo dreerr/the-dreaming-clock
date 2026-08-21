@@ -35,6 +35,27 @@ export async function getLayout() {
   return response.json();
 }
 
+// Messages are an action rather than a setting, so they have their own
+// endpoint instead of going through /api/state.
+export async function sendMessage(message) {
+  const response = await fetch("/api/message", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(message),
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok || !body.success) {
+    throw new Error(body.message || `HTTP ${response.status}`);
+  }
+  return body;
+}
+
+export async function clearMessages() {
+  const response = await fetch("/api/message", { method: "DELETE" });
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  return response.json();
+}
+
 export async function getTimezones() {
   const response = await fetch("/api/timezones");
   if (!response.ok) throw new Error(`HTTP ${response.status}`);

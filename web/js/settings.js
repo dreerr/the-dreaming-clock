@@ -1,4 +1,12 @@
-import { getState, patchState, getTimezones, saveHandler, showStatus } from "./api.js";
+import {
+  getState,
+  patchState,
+  getTimezones,
+  sendMessage,
+  clearMessages,
+  saveHandler,
+  showStatus,
+} from "./api.js";
 
 const $ = (id) => document.getElementById(id);
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -64,9 +72,66 @@ function renderTimeInfo() {
   $("time-info").innerHTML = `<strong>${clock}</strong> · ${time.timezone} · ${source}`;
 }
 
+// While something is playing, offer to stop it.
+function renderMessageState() {
+  const playing = state.message?.playing;
+  $("msg-clear").hidden = !playing;
+  if (playing && state.message.text) {
+    showStatus("msg-status", true, `playing "${state.message.text}"`);
+  }
+}
+
+function selectedEffect() {
+  const pressed = document.querySelector('#msg-effect [aria-pressed="true"]');
+  return pressed ? pressed.dataset.effect : "scroll";
+}
+
 // The segmented control shows which mode the clock is actually in, so it is
 // state rather than three buttons that look identical.
 function renderMode() {
+  // --- message -------------------------------------------------------------
+  for (const button of document.querySelectorAll("#msg-effect [data-effect]")) {
+    button.addEventListener("click", () => {
+      for (const other of document.querySelectorAll("#msg-effect [data-effect]")) {
+        other.setAttribute("aria-pressed", String(other === button));
+      }
+    });
+  }
+
+  $("msg-step").addEventListener("input", (e) => {
+    $("msg-step-value").textContent = e.target.value;
+  });
+
+  $("msg-send").addEventListener(
+    "click",
+    saveHandler("msg-status", async () => {
+      const text = $("msg-text").value.trim();
+      if (!text) throw new Error("nothing to say");
+      const result = await sendMessage({
+        text,
+        effect: selectedEffect(),
+        fill: $("msg-fill").value,
+        stepMs: Number($("msg-step").value),
+        crossfade: $("msg-crossfade").checked,
+      });
+      $("msg-clear").hidden = false;
+      const blanks = result.unrenderable || [];
+      if (blanks.length) {
+        return { message: `sent — ${blanks.join(" ")} cannot be drawn` };
+      }
+      return { message: "sent" };
+    }),
+  );
+
+  $("msg-clear").addEventListener(
+    "click",
+    saveHandler("msg-status", async () => {
+      await clearMessages();
+      $("msg-clear").hidden = true;
+      return { message: "stopped" };
+    }),
+  );
+
   for (const button of document.querySelectorAll("[data-mode]")) {
     button.setAttribute(
       "aria-pressed",
@@ -99,6 +164,7 @@ function apply() {
   $("fallbackEnabled").checked = state.network.fallback;
 
   renderMode();
+  renderMessageState();
   renderDayTable();
   renderNetworkInfo();
   renderTimeInfo();
@@ -194,6 +260,49 @@ export function initSettingsPanel() {
         dreamBrightness: Number($("dreamBrightness").value),
       }),
     ),
+  );
+
+  // --- message -------------------------------------------------------------
+  for (const button of document.querySelectorAll("#msg-effect [data-effect]")) {
+    button.addEventListener("click", () => {
+      for (const other of document.querySelectorAll("#msg-effect [data-effect]")) {
+        other.setAttribute("aria-pressed", String(other === button));
+      }
+    });
+  }
+
+  $("msg-step").addEventListener("input", (e) => {
+    $("msg-step-value").textContent = e.target.value;
+  });
+
+  $("msg-send").addEventListener(
+    "click",
+    saveHandler("msg-status", async () => {
+      const text = $("msg-text").value.trim();
+      if (!text) throw new Error("nothing to say");
+      const result = await sendMessage({
+        text,
+        effect: selectedEffect(),
+        fill: $("msg-fill").value,
+        stepMs: Number($("msg-step").value),
+        crossfade: $("msg-crossfade").checked,
+      });
+      $("msg-clear").hidden = false;
+      const blanks = result.unrenderable || [];
+      if (blanks.length) {
+        return { message: `sent — ${blanks.join(" ")} cannot be drawn` };
+      }
+      return { message: "sent" };
+    }),
+  );
+
+  $("msg-clear").addEventListener(
+    "click",
+    saveHandler("msg-status", async () => {
+      await clearMessages();
+      $("msg-clear").hidden = true;
+      return { message: "stopped" };
+    }),
   );
 
   for (const button of document.querySelectorAll("[data-mode]")) {

@@ -207,6 +207,59 @@
         </section>
 
           <section>
+            <h2>Message</h2>
+            <p class="note">
+              Interrupts whatever the clock is doing, plays, and hands the
+              display back. Only letters and digits can be drawn on a
+              seven-segment cell.
+            </p>
+
+            <div class="row">
+              <input type="text" id="msg-text" class="grow" placeholder="Say something" maxlength="32" />
+            </div>
+
+            <div class="row">
+              <label>Effect</label>
+              <div class="segmented" id="msg-effect" role="group" aria-label="Message effect">
+                <button type="button" data-effect="scroll" aria-pressed="true">Scroll</button>
+                <button type="button" data-effect="appear" aria-pressed="false">Appear</button>
+                <button type="button" data-effect="blink" aria-pressed="false">Blink</button>
+              </div>
+            </div>
+
+            <div class="row">
+              <label for="msg-fill">Fill</label>
+              <select id="msg-fill">
+                <option value="constant">Solid</option>
+                <option value="gradient">Gradient</option>
+                <option value="sweep">Sweep</option>
+                <option value="bloom">Bloom</option>
+                <option value="pulse">Pulse</option>
+              </select>
+            </div>
+
+            <div class="row slider-row">
+              <label for="msg-step">Step</label>
+              <input type="range" id="msg-step" min="80" max="1200" step="20" value="320" />
+              <output id="msg-step-value">320</output>
+            </div>
+
+            <div class="row">
+              <label class="switch" for="msg-crossfade">
+                <input type="checkbox" id="msg-crossfade" checked />
+                <span class="track"></span>
+                <span>Glide between steps</span>
+              </label>
+            </div>
+
+            <div class="actions">
+              <button id="msg-send" class="btn" type="button">Send</button>
+              <button id="msg-clear" class="btn quiet" type="button" hidden>Stop</button>
+              <span id="msg-status" class="status"></span>
+            </div>
+          </section>
+
+          <section>
             <details class="disclosure">
               <summary>Developer</summary>
 

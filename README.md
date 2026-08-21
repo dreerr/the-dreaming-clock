@@ -30,6 +30,7 @@ A beautiful ESP32-C3-based 7-segment LED clock with web interface, real-time clo
 |------|-------------|
 | **Dream** | Drifting colour gradients with words condensing out of the noise |
 | **Pattern** | The same drifting gradients, without words |
+| **Message** | Text you send, scrolling, appearing or blinking, then hands the display back |
 | **Wakeup** | Shows the current time for 15 seconds with a blinking colon |
 | **Time Not Set** | Blinking "00:00" until the time is known |
 | **Off** | Display off during configured inactive hours |
@@ -142,6 +143,8 @@ read and a single one to patch.
 | `/api/layout` | GET | Physical LED layout (counts and per-segment ranges) |
 | `/api/timezones` | GET | Supported timezone names |
 | `/api/wakeup` | POST | Show the time now |
+| `/api/message` | POST | Queue a message, or an array played in order |
+| `/api/message` | DELETE | Cancel the queue |
 | `/ws/leds` | WS | Live LED stream, 846 bytes/frame at 25 FPS |
 
 ```bash
