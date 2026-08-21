@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <unity.h>
 
+#include "animation.h"
 #include "config.h"
 #include "dreams.h"
 #include "layout.h"
@@ -331,6 +332,216 @@ void test_segment_buffer_covers_the_largest_segment(void) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// animation maths
+// ---------------------------------------------------------------------------
+
+void test_waves_start_and_end_at_zero(void) {
+  TEST_ASSERT_EQUAL_UINT8(0, triWave(0));
+  TEST_ASSERT_EQUAL_UINT8(0, triWave(255));
+  TEST_ASSERT_EQUAL_UINT8(0, quadWave(0));
+  TEST_ASSERT_EQUAL_UINT8(0, quadWave(255));
+}
+
+void test_waves_peak_in_the_middle(void) {
+  TEST_ASSERT_EQUAL_UINT8(255, triWave(127));
+  TEST_ASSERT_EQUAL_UINT8(255, triWave(128));
+  TEST_ASSERT_EQUAL_UINT8(255, quadWave(127));
+  TEST_ASSERT_EQUAL_UINT8(255, quadWave(128));
+}
+
+void test_waves_rise_then_fall_without_jumps(void) {
+  for (int p = 1; p <= 127; p++) {
+    TEST_ASSERT_GREATER_OR_EQUAL_UINT8(triWave(p - 1), triWave(p));
+    TEST_ASSERT_GREATER_OR_EQUAL_UINT8(quadWave(p - 1), quadWave(p));
+  }
+  for (int p = 129; p <= 255; p++) {
+    TEST_ASSERT_LESS_OR_EQUAL_UINT8(triWave(p - 1), triWave(p));
+    TEST_ASSERT_LESS_OR_EQUAL_UINT8(quadWave(p - 1), quadWave(p));
+  }
+}
+
+// The complaint this whole change answers: every segment always looked the same
+// colour, because the spread was pinned at 48 forever.
+void test_hue_spread_stays_in_range(void) {
+  for (uint32_t t = 0; t < DREAM_COHERENCE_PERIOD_MS * 3; t += 250) {
+    const uint8_t s = dreamHueSpread(t);
+    TEST_ASSERT_GREATER_OR_EQUAL_UINT8(DREAM_SPREAD_MIN, s);
+    TEST_ASSERT_LESS_OR_EQUAL_UINT8(DREAM_SPREAD_MAX, s);
+  }
+}
+
+void test_hue_spread_reaches_both_extremes_within_one_period(void) {
+  uint8_t lo = 255, hi = 0;
+  for (uint32_t t = 0; t < DREAM_COHERENCE_PERIOD_MS; t += 100) {
+    const uint8_t s = dreamHueSpread(t);
+    if (s < lo) lo = s;
+    if (s > hi) hi = s;
+  }
+  // Near-monochrome at one end, the whole wheel at the other.
+  TEST_ASSERT_LESS_OR_EQUAL_UINT8(DREAM_SPREAD_MIN + 2, lo);
+  TEST_ASSERT_GREATER_OR_EQUAL_UINT8(DREAM_SPREAD_MAX - 2, hi);
+}
+
+// A visible snap in how alike the colours are would be worse than no variation.
+void test_hue_spread_changes_smoothly(void) {
+  uint8_t prev = dreamHueSpread(0);
+  for (uint32_t t = 250; t < DREAM_COHERENCE_PERIOD_MS * 2; t += 250) {
+    const uint8_t s = dreamHueSpread(t);
+    const int step = s > prev ? s - prev : prev - s;
+    if (step > 4) {
+      char msg[80];
+      snprintf(msg, sizeof(msg), "spread jumped %d at t=%lu", step,
+               (unsigned long)t);
+      TEST_FAIL_MESSAGE(msg);
+    }
+    prev = s;
+  }
+}
+
+void test_hue_spread_period_is_four_minutes(void) {
+  // Find two successive troughs and check the gap.
+  int first = -1, second = -1;
+  for (uint32_t t = 1; t < DREAM_COHERENCE_PERIOD_MS * 3; t += 100) {
+    if (dreamHueSpread(t) == DREAM_SPREAD_MIN &&
+        dreamHueSpread(t - 100) != DREAM_SPREAD_MIN) {
+      if (first < 0) first = (int)t;
+      else if (second < 0) { second = (int)t; break; }
+    }
+  }
+  TEST_ASSERT_GREATER_THAN_INT(0, first);
+  TEST_ASSERT_GREATER_THAN_INT(0, second);
+  const int period = second - first;
+  TEST_ASSERT_INT_WITHIN(1000, (int)DREAM_COHERENCE_PERIOD_MS, period);
+}
+
+// Every LED must be visited, or part of the bar would simply never light.
+void test_sweep_reaches_every_led(void) {
+  const int count = 10;
+  for (int i = 0; i < count; i++) {
+    uint8_t best = 0;
+    for (int p = 0; p <= 255; p++) {
+      const uint8_t l = sweepLevel((uint8_t)p, i, count);
+      if (l > best) best = l;
+    }
+    if (best < 250) {
+      char msg[64];
+      snprintf(msg, sizeof(msg), "LED %d peaks at only %u", i, best);
+      TEST_FAIL_MESSAGE(msg);
+    }
+  }
+}
+
+void test_sweep_head_travels_out_and_back(void) {
+  const int count = 10;
+  // The head is a plateau several LEDs wide, so several share the peak value.
+  // Its centre of brightness is the meaningful position.
+  auto centroid = [&](int phase) {
+    long weighted = 0, total = 0;
+    for (int i = 0; i < count; i++) {
+      const long l = sweepLevel((uint8_t)phase, i, count);
+      weighted += i * l;
+      total += l;
+    }
+    return total > 0 ? (double)weighted / total : 0.0;
+  };
+  const double start = centroid(0);
+  const double middle = centroid(127);
+  const double end = centroid(255);
+
+  TEST_ASSERT_TRUE(start < 1.5);            // parked at the near end
+  TEST_ASSERT_TRUE(middle > count - 2.5);   // reached the far end
+  TEST_ASSERT_TRUE(end < 1.5);              // and came back
+
+  // and got there without reversing on the way
+  double prev = start;
+  for (int p = 1; p <= 127; p++) {
+    const double c = centroid(p);
+    TEST_ASSERT_TRUE(c >= prev - 0.01);
+    prev = c;
+  }
+}
+
+void test_sweep_is_dark_away_from_the_head(void) {
+  // With the head at one end, the far end must be off.
+  TEST_ASSERT_EQUAL_UINT8(0, sweepLevel(0, 9, 10));
+  TEST_ASSERT_EQUAL_UINT8(0, sweepLevel(127, 0, 10));
+}
+
+void test_bloom_is_symmetric_about_the_centre(void) {
+  const int count = 10;
+  for (int p = 0; p <= 255; p++) {
+    for (int i = 0; i < count; i++) {
+      const uint8_t a = bloomLevel((uint8_t)p, i, count);
+      const uint8_t b = bloomLevel((uint8_t)p, count - 1 - i, count);
+      if (a != b) {
+        char msg[80];
+        snprintf(msg, sizeof(msg), "phase %d: LED %d=%u but mirror=%u", p, i, a, b);
+        TEST_FAIL_MESSAGE(msg);
+      }
+    }
+  }
+}
+
+void test_bloom_grows_from_the_centre_to_the_ends(void) {
+  const int count = 10;
+  // At the start only the middle glows and the ends are dark.
+  TEST_ASSERT_EQUAL_UINT8(0, bloomLevel(0, 0, count));
+  TEST_ASSERT_EQUAL_UINT8(0, bloomLevel(0, count - 1, count));
+  TEST_ASSERT_GREATER_THAN_UINT8(0, bloomLevel(0, count / 2, count));
+  // By the end of the first half the whole bar is lit.
+  for (int i = 0; i < count; i++) {
+    TEST_ASSERT_EQUAL_UINT8(255, bloomLevel(127, i, count));
+  }
+}
+
+// The second half wipes the bar clean with darkness spreading from the centre,
+// rather than the light shrinking back the way it came.
+void test_bloom_erases_from_the_centre_in_the_second_half(void) {
+  const int count = 10;
+  // Just after the turn the centre goes dark first while the ends stay lit.
+  TEST_ASSERT_LESS_THAN_UINT8(bloomLevel(160, 0, count),
+                              bloomLevel(160, count / 2, count));
+  TEST_ASSERT_EQUAL_UINT8(255, bloomLevel(160, 0, count));
+  // By the end everything is dark.
+  for (int i = 0; i < count; i++) {
+    TEST_ASSERT_EQUAL_UINT8(0, bloomLevel(255, i, count));
+  }
+}
+
+// A single point darting along the bar was too nervous to watch.
+void test_sweep_lights_several_leds_at_once(void) {
+  const int count = 10;
+  int worst = count;
+  for (int p = 0; p <= 255; p++) {
+    int on = 0;
+    for (int i = 0; i < count; i++) {
+      if (sweepLevel((uint8_t)p, i, count) > 40) on++;
+    }
+    if (on < worst) worst = on;
+  }
+  if (worst < 4) {
+    char msg[64];
+    snprintf(msg, sizeof(msg), "only %d LEDs lit at the thinnest point", worst);
+    TEST_FAIL_MESSAGE(msg);
+  }
+}
+
+void test_ramp_up_is_monotonic_end_to_end(void) {
+  TEST_ASSERT_EQUAL_UINT8(0, rampUp(0));
+  TEST_ASSERT_EQUAL_UINT8(255, rampUp(255));
+  for (int p = 1; p <= 255; p++) {
+    TEST_ASSERT_GREATER_OR_EQUAL_UINT8(rampUp(p - 1), rampUp(p));
+  }
+}
+
+void test_envelopes_ignore_out_of_range_leds(void) {
+  TEST_ASSERT_EQUAL_UINT8(0, sweepLevel(60, -1, 10));
+  TEST_ASSERT_EQUAL_UINT8(0, sweepLevel(60, 10, 10));
+  TEST_ASSERT_EQUAL_UINT8(0, bloomLevel(60, -1, 10));
+  TEST_ASSERT_EQUAL_UINT8(0, bloomLevel(60, 10, 10));
+}
+
 int main(int, char **) {
   UNITY_BEGIN();
 
@@ -363,6 +574,23 @@ int main(int, char **) {
   RUN_TEST(test_mapping_holds_for_other_digit_counts);
   RUN_TEST(test_configured_layout_matches_the_hardware);
   RUN_TEST(test_segment_buffer_covers_the_largest_segment);
+
+  RUN_TEST(test_waves_start_and_end_at_zero);
+  RUN_TEST(test_waves_peak_in_the_middle);
+  RUN_TEST(test_waves_rise_then_fall_without_jumps);
+  RUN_TEST(test_hue_spread_stays_in_range);
+  RUN_TEST(test_hue_spread_reaches_both_extremes_within_one_period);
+  RUN_TEST(test_hue_spread_changes_smoothly);
+  RUN_TEST(test_hue_spread_period_is_four_minutes);
+  RUN_TEST(test_sweep_reaches_every_led);
+  RUN_TEST(test_sweep_head_travels_out_and_back);
+  RUN_TEST(test_sweep_is_dark_away_from_the_head);
+  RUN_TEST(test_bloom_is_symmetric_about_the_centre);
+  RUN_TEST(test_bloom_grows_from_the_centre_to_the_ends);
+  RUN_TEST(test_bloom_erases_from_the_centre_in_the_second_half);
+  RUN_TEST(test_sweep_lights_several_leds_at_once);
+  RUN_TEST(test_ramp_up_is_monotonic_end_to_end);
+  RUN_TEST(test_envelopes_ignore_out_of_range_leds);
 
   return UNITY_END();
 }
