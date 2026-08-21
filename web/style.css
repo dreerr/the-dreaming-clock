@@ -289,12 +289,13 @@ input[type="password"] {
 }
 
 /* The glow layer sits behind the sharp one. Blurring it in CSS hands the bloom
-   to the compositor, so it costs nothing per frame. */
+   to the compositor, so it costs nothing per frame. Solid segment shapes bloom
+   far more than the point sources did, so this is softer and weaker. */
 .led-glow {
   position: absolute;
   inset: 0;
-  filter: blur(10px);
-  opacity: 0.75;
+  filter: blur(16px);
+  opacity: 0.55;
 }
 
 .ws-status {
