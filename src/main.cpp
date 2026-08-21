@@ -1,52 +1,46 @@
 #include <Arduino.h>
 
-#include "settings.h"
-
-// Globale Variablen (deklariert in settings.h)
-bool wakeup = false;
-bool timeWasSet = false;
-
+#include "clock_time.h"
+#include "config.h"
+#include "dreams.h"
 #include "leds.h"
-#include "network.h"
+#include "modes.h"
+#include "net_wifi.h"
 #include "ota.h"
-#include "rtc.h"
+#include "settings.h"
 #include "web.h"
 
 void setup() {
   Serial.begin(115200);
-  delay(100); // Give Serial time to initialize
+  delay(100);
 
   Serial.println();
-  Serial.println("╔══════════════════════════════════════╗");
-  Serial.println("║     THE DREAMING CLOCK - ESP32-C3    ║");
-  Serial.println("╚══════════════════════════════════════╝");
+  Serial.println(F("╔══════════════════════════════════════╗"));
+  Serial.println(F("║     THE DREAMING CLOCK - ESP32-C3    ║"));
+  Serial.println(F("╚══════════════════════════════════════╝"));
   Serial.println();
 
-  for (uint8_t t = 3; t > 0; t--) {
-    Serial.printf("Starting in %d...\n", t);
-    Serial.flush();
-    delay(1000);
-  }
-  Serial.println();
+  // Seed both RNGs from hardware entropy. Without this the "random" dream and
+  // colour sequences were identical on every boot.
+  const uint32_t seed = esp_random();
+  randomSeed(seed);
+  seedDreamWords(seed);
 
   setupSettings();
   setupNetwork();
-  setupRTC();
+  setupClockTime();
   setupOTA();
   setupWeb();
   setupLEDs();
 
-  Serial.println();
-  Serial.println("╔══════════════════════════════════════╗");
-  Serial.println("║         SETUP COMPLETE! ✓            ║");
-  Serial.println("╚══════════════════════════════════════╝");
-  Serial.printf("Free heap: %d bytes\n", ESP.getFreeHeap());
+  Serial.printf("Setup complete. Free heap: %u bytes\n", ESP.getFreeHeap());
   Serial.println();
 }
 
 void loop() {
-  loopNetwork(); // Don't delete!
-  loopOTA();     // Don't delete!
-  loopWeb();     // WebSocket LED preview
+  loopNetwork();
+  loopOTA();
+  loopClockTime();
+  loopWeb();
   loopLEDs();
 }

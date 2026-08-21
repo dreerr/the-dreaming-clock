@@ -1,6 +1,15 @@
+.pio
 .pioenvs
 .piolibdeps
 .clang_complete
 .gcc-flags.json
 .vscode
-.pio
+
+# macOS
+.DS_Store
+
+# Frontend toolchain
+node_modules/
+
+# Local secrets (OTA password etc.) — see README
+.env

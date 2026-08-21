@@ -1,70 +1,38 @@
 #pragma once
-#include <Arduino.h>
-#include <FastLED.h>
-#include <RTClib.h>
+#include <stdint.h>
 
-#include "patterns.h"
+#include "config.h"
 #include "segment.h"
 
-// External references
-extern Segment segments[];
-extern CHSV mainColor;
-DateTime getCurrentTime();
+// ===========================================================================
+// Display — puts glyphs on the segment array.
+// ===========================================================================
+//
+// These set a segment's *probability*, not its brightness. 255 means the
+// segment is certain to be lit (a solid, readable glyph); 0 means it is
+// certain to be dark; values in between make the glyph flicker into and out of
+// whatever the segments are already doing.
 
-// Set a character (0-9, A-Z, a-z) at a position with given opacity
-// Note: This only sets opacity - caller must set color/mode separately
-inline void setChar(int position, char c, int opacity) {
-  int8_t patternIndex = getPatternIndex(c);
-  int start = position * 7;
+// Set one character at digit position 0..NUM_DIGITS-1.
+void setChar(int position, char c, uint8_t probability);
 
-  if (patternIndex < 0) {
-    // Unknown character - turn off all segments
-    for (int segPos = 0; segPos < 7; segPos++) {
-      segments[start + segPos].opacity = 0;
-    }
-    return;
-  }
+// Set a 4-character word. Shorter words are padded with blanks.
+void setWord(const char *word, uint8_t probability);
 
-  uint8_t pattern = segmentPatterns[patternIndex];
-  for (int segPos = 0; segPos < 7; segPos++) {
-    if ((pattern >> segPos) & 0x01) {
-      segments[start + segPos].opacity = opacity;
-    } else {
-      segments[start + segPos].opacity = 0;
-    }
-  }
-}
+// Set a 4-digit number (e.g. 1435 for 14:35). Values are taken modulo 10000.
+void setNumber(int value, uint8_t probability);
 
-// Set a digit (0-9) at a position - convenience wrapper
-inline void setDigit(int position, int value, int opacity) {
-  if (value >= 0 && value <= 9) {
-    setChar(position, '0' + value, opacity);
-  }
-}
+// Same as setWord(), but segments outside the glyph keep a background
+// probability instead of going dark. This is what lets a word condense out of
+// the dream noise rather than replacing it.
+void setWordOverNoise(const char *word, uint8_t wordProbability,
+                      uint8_t noiseProbability);
 
-// Set a 4-digit number on the display
-inline void setNumber(int value, int opacity) {
-  const int numDigits = 4;
-  for (int i = 0; i < numDigits; i++) {
-    setDigit(i, value / ((int)pow(10, numDigits - 1 - i)) % 10, opacity);
-  }
-}
+// Apply one probability to every digit segment (the colon is left alone).
+void setAllDigits(uint8_t probability);
 
-// Display the current time from RTC
-inline void showCurrentTime() {
-  DateTime now = getCurrentTime();
-  int timeValue = now.minute() + now.hour() * 100;
-
-  // Set the time digits
-  setNumber(timeValue, 255);
-
-  // // Apply color to all digit segments that are on
-  for (int i = 0; i < 7 * 4; i++) {
-    segments[i].mode = SegmentMode::COLOR;
-  }
-
-  // Blinking colon
-  bool colonOn = ((millis() % 2000) > 1000);
-  segments[COLON_INDEX].opacity = colonOn ? 255 : 0;
-  segments[COLON_INDEX].fillColor(mainColor, 0); // Instant change
-}
+// Apply a mode, colour and timings to every segment including the colon.
+void setAllMode(SegmentMode mode, uint16_t cycleMs, uint16_t fadeMs);
+void setAllColor(const CRGB &color, uint8_t brightness);
+void setAllHue(uint8_t hueBase, uint8_t hueSpread);
+void restartAll(uint32_t now);

@@ -1,111 +1,76 @@
 #pragma once
-#define SEGMENT_LENGTH 10
-#define MIN_DURATION_MS 1000  // Fastest animation: 1 seconds
-#define MAX_DURATION_MS 10000 // Slowest animation: 10 seconds
-
-#include <Arduino.h>
 #include <FastLED.h>
-#include <math.h>
-using namespace std;
+#include <stdint.h>
 
-enum SegmentMode {
-  RANDOM,
-  COLOR,
+#include "config.h"
+
+// ===========================================================================
+// Segment — one 7-segment bar (or the colon), driven by probability.
+// ===========================================================================
+//
+// The display layer does not switch a segment on or off directly. It sets a
+// *probability*, and once per animation cycle the segment rolls against it to
+// decide whether it lights up for the next cycle. Showing a glyph solidly is
+// probability 255; hiding it is 0; everything in between makes the glyph
+// flicker into and out of the noise.
+//
+// The split between tick() and render() matters: tick() is the only thing that
+// touches scheduling state, and render() is a pure function of the time elapsed
+// since the cycle began. Rendering therefore cannot reset the animation clock,
+// which is what used to make crossfades freeze when a caller re-issued a colour
+// every frame.
+
+enum class SegmentMode : uint8_t {
+  CONSTANT,        // solid colour
+  RANDOM_GRADIENT, // drifting random gradient across the bar
+  PULSE,           // smooth dim up and down over one cycle
+  BLINK,           // hard on for the first half of the cycle, off for the rest
 };
 
+const char *segmentModeName(SegmentMode mode);
+bool segmentModeFromName(const char *name, SegmentMode &out);
+
 class Segment {
-private:
-  bool initialized = false;
-  int segStart;
-  int segLength;
-  CRGB *leds;
-  CRGB *current;
-  CRGB *target;
-  unsigned long animationStartMs = 0;
-  unsigned long nextSequenceStart = 0;
-
 public:
-  unsigned int durationMs = 5000; // Animation duration in milliseconds
-  int opacity = 0;
-  int gradientRange = 0;
-  SegmentMode mode = RANDOM;
-  Segment() {}
-  Segment(CRGB *leds, int start, int length)
-      : leds(leds), segStart(start), segLength(length) {
-    initialized = true;
-    current = new CRGB[segLength];
-    target = new CRGB[segLength];
-  }
+  // --- inputs: written by the display / mode layer ---
+  uint8_t probability = 128; // 0 = never lit, 255 = always lit
+  uint16_t cycleMs = 5000;   // length of one animation cycle
+  uint16_t fadeMs = 2000;    // crossfade into the new cycle's target
+  SegmentMode mode = SegmentMode::RANDOM_GRADIENT;
+  CRGB color = CRGB::Black;  // CONSTANT / PULSE / BLINK
+  uint8_t brightness = 255;  // ceiling brightness when lit
+  uint8_t hueBase = 0;       // RANDOM_GRADIENT: centre of the hue range
+  uint8_t hueSpread = 48;    // RANDOM_GRADIENT: width of the hue range
 
-  void fillRandomGradient(CRGB *array, int numToFill) {
-    mode = RANDOM;
-    CHSV hsv_array[numToFill];
-    int minB = max(0, opacity - gradientRange);
-    int maxB = min(opacity + gradientRange, 255);
-    int hueDeviation = sin(2 * PI * millis() / 1000.0);
-    int hueMin = (millis() / 7803) % 255;
-    int hueMax = (millis() / 1000) % 255;
-    CHSV colorStart = CHSV(random(hueMin, hueMax), 255, random(minB, maxB));
-    CHSV colorMid = CHSV(random(hueMin, hueMax), 255, random(minB, maxB));
-    CHSV colorEnd = CHSV(random(hueMin, hueMax), 255, random(minB, maxB));
-    fill_gradient(hsv_array, 0, colorStart, (numToFill / 2 - 1), colorMid);
-    fill_gradient(hsv_array, numToFill / 2, colorMid, numToFill - 1, colorEnd);
-    for (int i = 0; i < numToFill; i++) {
-      array[i] = hsv_array[i];
-    }
-  }
+  void attach(CRGB *strip, int start, int count);
 
-  void newSequence() {
-    // Reset Sequence and copy values from live leds
-    nextSequenceStart = millis() + random(20000); // refactor this!
-    animationStartMs = millis();
-    for (int i = 0; i < segLength; i++) {
-      current[i] = leds[i + segStart];
-    }
-  }
+  // Roll a fresh cycle immediately. Use after changing mode or colour when the
+  // change should be visible without waiting for the current cycle to end.
+  void restart(uint32_t now);
 
-  void fillColor(CRGB color, unsigned int newDurationMs) {
-    newSequence();
-    mode = COLOR;
-    durationMs = newDurationMs;
-    color.fadeToBlackBy(255 - opacity);
-    for (int i = 0; i < segLength; i++) {
-      target[i] = color;
-      if (newDurationMs == 0) {
-        current[i] = color; // Instant change
-      }
-    }
-  }
+  // Advance to the next cycle if the current one has elapsed.
+  void tick(uint32_t now);
 
-  void drawBlend() {
-    // Calculate blend amount based on elapsed time
-    unsigned long elapsed = millis() - animationStartMs;
-    int blendAmount =
-        (durationMs > 0) ? min(255UL, (elapsed * 255UL) / durationMs) : 255;
+  // Write this segment's LEDs for the current instant.
+  void render(uint32_t now);
 
-    for (int i = 0; i < segLength; i++) {
-      leds[i + segStart] = blend(current[i], target[i], blendAmount);
-    }
+  bool isLit() const { return lit_; }
+  bool isAttached() const { return strip_ != nullptr; }
 
-    if (blendAmount >= 255) {
-      if (mode == RANDOM && millis() > nextSequenceStart) {
-        newSequence();
-        durationMs = random(MIN_DURATION_MS, MAX_DURATION_MS);
+private:
+  CRGB *strip_ = nullptr;
+  int start_ = 0;
+  int count_ = 0;
 
-        // Should be made more elegant
-        gradientRange = random(0, 50);
-        if (random8(255) > 200) {
-          opacity = (random8(255) > 120) ? 255 : 0;
-        }
+  CRGB from_[MAX_SEG_LEDS];
+  CRGB to_[MAX_SEG_LEDS];
+  uint32_t cycleStart_ = 0;
+  bool lit_ = false;
 
-        fillRandomGradient(target, segLength);
-      }
-    }
-  }
-
-  void draw() {
-    if (initialized) {
-      drawBlend();
-    }
-  }
+  void advance(uint32_t now);
+  void snapshotFrom();
+  void buildTarget();
+  void fillGradient();
+  CRGB litColor() const;
+  uint8_t fadeAmount(uint32_t elapsed) const;
 };

@@ -1,18 +1,16 @@
 #pragma once
 #include <Arduino.h>
-#include <Preferences.h>
+#include <stdint.h>
 
-// ===== Globale Konstanten =====
-#define AP_SSID "the dreaming clock"
-#define HOSTNAME "the-dreaming-clock"
-#define HTTPHOST "http://the-dreaming-clock.local"
-#define USE_CAPTIVE true
+#include "config.h"
+#include "schedule.h"
 
-// Settings namespace for NVS storage
-#define SETTINGS_NAMESPACE "clock-settings"
+// ===========================================================================
+// Persistent settings (NVS)
+// ===========================================================================
 
-// Wakeup interval options in minutes
-enum WakeupInterval {
+enum WakeupInterval : uint16_t {
+  WAKEUP_OFF = 0,
   WAKEUP_5MIN = 5,
   WAKEUP_15MIN = 15,
   WAKEUP_30MIN = 30,
@@ -21,198 +19,39 @@ enum WakeupInterval {
   WAKEUP_3H = 180,
   WAKEUP_4H = 240,
   WAKEUP_6H = 360,
-  WAKEUP_OFF = 0 // No automatic wakeup
 };
 
-// Network mode options
-enum NetworkMode {
-  NETWORK_CAPTIVE = 0, // Captive Portal (default)
-  NETWORK_CLIENT = 1   // Connect to WiFi network
+enum NetworkMode : uint8_t {
+  NETWORK_CAPTIVE = 0,
+  NETWORK_CLIENT = 1,
 };
 
-// Network settings structure
 struct NetworkSettings {
-  NetworkMode mode;       // Current network mode
-  char ssid[33];          // WiFi SSID (max 32 chars + null)
-  char password[65];      // WiFi password (max 64 chars + null)
-  bool fallbackToCaptive; // Fallback to captive if client fails
+  NetworkMode mode;
+  char ssid[33];     // 32 chars + NUL
+  char password[65]; // 64 chars + NUL
+  bool fallbackToCaptive;
 };
 
-// Active hours for a single day
-struct DaySchedule {
-  bool enabled;      // Whether the display is active on this day
-  uint8_t startHour; // Start hour (0-23)
-  uint8_t endHour;   // End hour (0-23)
-};
-
-// Global settings structure
 struct ClockSettings {
-  DaySchedule days[7];     // 0=Sunday, 1=Monday, ... 6=Saturday
-  uint16_t wakeupInterval; // Minutes between automatic wakeups (0=off)
-  bool useActiveHours;     // Whether to use active hours at all
-  char timezone[40];       // IANA timezone identifier (e.g., "Europe/Vienna")
+  DaySchedule days[7]; // 0 = Sunday .. 6 = Saturday
+  uint16_t wakeupInterval;
+  bool useActiveHours;
+  char timezone[40];      // IANA name, e.g. "Europe/Vienna"
+  uint8_t brightness;     // ceiling while showing the time
+  uint8_t dreamBrightness; // ceiling while dreaming
 };
 
-// Global settings instances
 extern ClockSettings clockSettings;
 extern NetworkSettings networkSettings;
-extern Preferences preferences;
 
-// Initialize settings from NVS
-void setupSettings() {
-  Serial.println("=== Settings Setup ===");
-  Serial.println("  Loading from NVS...");
-  preferences.begin(SETTINGS_NAMESPACE, false);
+void setupSettings();
 
-  // Load network settings
-  networkSettings.mode =
-      (NetworkMode)preferences.getUChar("netMode", NETWORK_CAPTIVE);
+void saveActiveHours();
+void saveWakeupInterval();
+void saveTimezone();
+void saveBrightness();
+void saveNetworkSettings();
 
-  // Initialize strings to empty, then load if they exist
-  networkSettings.ssid[0] = '\0';
-  networkSettings.password[0] = '\0';
-  if (preferences.isKey("netSSID")) {
-    preferences.getString("netSSID", networkSettings.ssid,
-                          sizeof(networkSettings.ssid));
-  }
-  if (preferences.isKey("netPass")) {
-    preferences.getString("netPass", networkSettings.password,
-                          sizeof(networkSettings.password));
-  }
-
-  networkSettings.fallbackToCaptive = preferences.getBool("netFallback", true);
-
-  // Log network configuration
-  Serial.println("=== Network Configuration ===");
-  Serial.printf("  Mode: %s\n", networkSettings.mode == NETWORK_CAPTIVE
-                                    ? "Captive Portal"
-                                    : "Client");
-  if (networkSettings.mode == NETWORK_CLIENT) {
-    Serial.printf("  SSID: %s\n", networkSettings.ssid);
-    Serial.printf("  Password: %s\n",
-                  strlen(networkSettings.password) > 0 ? "****" : "(none)");
-    Serial.printf("  Fallback to Captive: %s\n",
-                  networkSettings.fallbackToCaptive ? "Yes" : "No");
-  }
-  Serial.println("=============================\n");
-
-  // Load useActiveHours setting
-  clockSettings.useActiveHours = preferences.getBool("useActiveHrs", true);
-
-  // Load wakeup interval
-  clockSettings.wakeupInterval = preferences.getUShort("wakeupInt", WAKEUP_OFF);
-
-  // Load timezone (default: Europe/Berlin)
-  clockSettings.timezone[0] = '\0';
-  if (preferences.isKey("timezone")) {
-    preferences.getString("timezone", clockSettings.timezone,
-                          sizeof(clockSettings.timezone));
-  } else {
-    strcpy(clockSettings.timezone, "Europe/Vienna");
-  }
-  Serial.printf("  Timezone: %s\n", clockSettings.timezone);
-
-  // Load day schedules
-  // Default: Mon-Fri 8-18, Sat-Sun off
-  for (int i = 0; i < 7; i++) {
-    String prefix = "day" + String(i);
-
-    // Default values: Mon-Fri enabled 8-18, Sat-Sun disabled
-    bool defaultEnabled = (i >= 1 && i <= 5); // Mon-Fri
-    uint8_t defaultStart = 8;
-    uint8_t defaultEnd = 18;
-
-    clockSettings.days[i].enabled =
-        preferences.getBool((prefix + "en").c_str(), defaultEnabled);
-    clockSettings.days[i].startHour =
-        preferences.getUChar((prefix + "st").c_str(), defaultStart);
-    clockSettings.days[i].endHour =
-        preferences.getUChar((prefix + "ed").c_str(), defaultEnd);
-  }
-
-  Serial.println("Settings loaded from NVS");
-}
-
-// Save all settings to NVS
-void saveSettings() {
-  preferences.putBool("useActiveHrs", clockSettings.useActiveHours);
-  preferences.putUShort("wakeupInt", clockSettings.wakeupInterval);
-
-  for (int i = 0; i < 7; i++) {
-    String prefix = "day" + String(i);
-    preferences.putBool((prefix + "en").c_str(), clockSettings.days[i].enabled);
-    preferences.putUChar((prefix + "st").c_str(),
-                         clockSettings.days[i].startHour);
-    preferences.putUChar((prefix + "ed").c_str(),
-                         clockSettings.days[i].endHour);
-  }
-
-  Serial.println("Settings saved to NVS");
-}
-
-// Save only active hours settings
-void saveActiveHours() {
-  preferences.putBool("useActiveHrs", clockSettings.useActiveHours);
-
-  for (int i = 0; i < 7; i++) {
-    String prefix = "day" + String(i);
-    preferences.putBool((prefix + "en").c_str(), clockSettings.days[i].enabled);
-    preferences.putUChar((prefix + "st").c_str(),
-                         clockSettings.days[i].startHour);
-    preferences.putUChar((prefix + "ed").c_str(),
-                         clockSettings.days[i].endHour);
-  }
-
-  Serial.println("Active hours saved");
-}
-
-// Save only wakeup interval
-void saveWakeupInterval() {
-  preferences.putUShort("wakeupInt", clockSettings.wakeupInterval);
-  Serial.printf("Wakeup interval saved: %d minutes\n",
-                clockSettings.wakeupInterval);
-}
-
-// Save timezone
-void saveTimezone() {
-  preferences.putString("timezone", clockSettings.timezone);
-  Serial.printf("Timezone saved: %s\n", clockSettings.timezone);
-}
-
-// Check if display should be active right now based on settings
-bool isDisplayActiveTime(uint8_t weekday, uint8_t hour) {
-  if (!clockSettings.useActiveHours) {
-    return true; // Always active if feature disabled
-  }
-
-  DaySchedule &day = clockSettings.days[weekday];
-
-  if (!day.enabled) {
-    return false;
-  }
-
-  // Handle same-day schedule (e.g., 8-18)
-  if (day.startHour <= day.endHour) {
-    return (hour >= day.startHour && hour < day.endHour);
-  }
-
-  // Handle overnight schedule (e.g., 22-6) - not typical but supported
-  return (hour >= day.startHour || hour < day.endHour);
-}
-
-// Save network settings
-void saveNetworkSettings() {
-  preferences.putUChar("netMode", networkSettings.mode);
-  preferences.putString("netSSID", networkSettings.ssid);
-  preferences.putString("netPass", networkSettings.password);
-  preferences.putBool("netFallback", networkSettings.fallbackToCaptive);
-  Serial.println("Network settings saved");
-}
-
-// Global variable definitions
-ClockSettings clockSettings;
-NetworkSettings networkSettings;
-Preferences preferences;
-
-extern bool wakeup;
-extern bool timeWasSet;
+// Convenience wrapper around isDisplayActiveTime() bound to the live settings.
+bool isDisplayActiveNow(uint8_t weekday, uint8_t hour);
