@@ -53,8 +53,14 @@ void Segment::snapshotFrom(uint32_t now) {
 
   if (mode == SegmentMode::CONSTANT || mode == SegmentMode::RANDOM_GRADIENT) {
     const uint8_t amount = fadeAmount(elapsed);
+    const int32_t offset = mode == SegmentMode::RANDOM_GRADIENT
+                               ? driftOffset(phaseAt(elapsed))
+                               : 0;
     for (int i = 0; i < count_; i++) {
-      from_[i] = blend(from_[i], to_[i], amount);
+      const CRGB current = mode == SegmentMode::RANDOM_GRADIENT
+                               ? sampleGradient(i, offset)
+                               : to_[i];
+      from_[i] = blend(from_[i], current, amount);
     }
     return;
   }
@@ -93,37 +99,63 @@ uint8_t Segment::envelopeAt(uint8_t phase, int index) const {
 }
 
 void Segment::fillGradient() {
-  CHSV hsv[MAX_SEG_LEDS];
+  // A *closed* loop of colours: the last stop leads back to the first, so the
+  // gradient can slide along the bar indefinitely without a seam crossing it.
+  //
+  // How many stops and how far apart their hues are is what gives a segment its
+  // character — two close stops read as a single colour, five spread ones as a
+  // rainbow.
+  constexpr uint8_t kStopsMax = 5;
+  CHSV stops[kStopsMax];
 
-  // Value varies a little across the bar so the gradient reads as depth rather
-  // than a flat wash. This is at full scale — `brightness` is applied when the
-  // segment renders, not when its target is built, so changing it is visible
-  // immediately instead of waiting for the next cycle.
-  constexpr uint8_t kSpread = 255 / 4;
+  uint8_t n = gradientStops;
+  if (n < 2) n = 2;
+  if (n > kStopsMax) n = kStopsMax;
 
-  auto pick = [&]() {
-    return CHSV(hueBase + random8(hueSpread), 255,
-                random8(255 - kSpread, 255));
-  };
-
-  CHSV start = pick();
-  CHSV mid = pick();
-  CHSV end = pick();
-
-  if (count_ <= 2) {
-    // The colon is only two LEDs; a three-stop gradient has nowhere to go.
-    for (int i = 0; i < count_; i++) {
-      hsv[i] = i == 0 ? start : end;
-    }
-  } else {
-    const int half = count_ / 2;
-    fill_gradient(hsv, 0, start, half, mid);
-    fill_gradient(hsv, half, mid, count_ - 1, end);
+  // Value varies a little so the gradient reads as depth rather than a flat
+  // wash. At full scale — `brightness` is applied when the segment renders.
+  constexpr uint8_t kValueSpread = 255 / 4;
+  for (uint8_t i = 0; i < n; i++) {
+    stops[i] = CHSV(hueBase + random8(hueSpread), 255,
+                    random8(255 - kValueSpread, 255));
   }
 
   for (int i = 0; i < count_; i++) {
-    to_[i] = hsv[i];
+    // Position around the closed loop, 8.8 fixed point.
+    const uint16_t t = static_cast<uint16_t>(
+        (static_cast<uint32_t>(i) * n * 256u) / static_cast<uint32_t>(count_));
+    const uint8_t a = static_cast<uint8_t>((t >> 8) % n);
+    const uint8_t b = static_cast<uint8_t>((a + 1) % n);
+    to_[i] = CRGB(blend(stops[a], stops[b], static_cast<fract8>(t & 0xFF)));
   }
+}
+
+namespace {
+// Sub-LED resolution for the drift, so a slide across a ten-LED bar is smooth.
+constexpr int32_t kDriftSub = 64;
+} // namespace
+
+// Sample the closed gradient loop at a sub-LED offset, wrapping around.
+CRGB Segment::sampleGradient(int index, int32_t offsetSub) const {
+  const int32_t total = static_cast<int32_t>(count_) * kDriftSub;
+  int32_t pos = static_cast<int32_t>(index) * kDriftSub + offsetSub;
+  pos %= total;
+  if (pos < 0) {
+    pos += total;
+  }
+  const int a = static_cast<int>(pos / kDriftSub);
+  const int b = (a + 1) % count_;
+  const fract8 frac =
+      static_cast<fract8>((pos % kDriftSub) * (256 / kDriftSub));
+  return blend(to_[a], to_[b], frac);
+}
+
+int32_t Segment::driftOffset(uint8_t phase) const {
+  if (driftPercent == 0) {
+    return 0;
+  }
+  return (static_cast<int32_t>(phase) * driftPercent * count_ * kDriftSub) /
+         (255 * 100);
 }
 
 void Segment::buildTarget() {
@@ -167,6 +199,24 @@ void Segment::advance(uint32_t now) {
 
 void Segment::restart(uint32_t now) { advance(now); }
 
+void Segment::refreshTarget() {
+  if (isAttached()) {
+    buildTarget();
+  }
+}
+
+void Segment::transitionTo(SegmentMode newMode, uint32_t now,
+                           uint16_t crossfadeMs) {
+  if (!isAttached() || mode == newMode) {
+    return;
+  }
+  snapshotFrom(now); // capture the outgoing picture before anything moves
+  mode = newMode;
+  cycleStart_ = now;
+  fadeMs = crossfadeMs;
+  buildTarget(); // lit_ is deliberately untouched
+}
+
 void Segment::tick(uint32_t now) {
   if (!isAttached()) {
     return;
@@ -201,11 +251,23 @@ void Segment::render(uint32_t now) {
   const uint32_t elapsed = now - cycleStart_;
 
   switch (mode) {
-  case SegmentMode::CONSTANT:
-  case SegmentMode::RANDOM_GRADIENT: {
+  case SegmentMode::CONSTANT: {
     const uint8_t amount = fadeAmount(elapsed);
     for (int i = 0; i < count_; i++) {
       CRGB c = blend(from_[i], to_[i], amount);
+      c.nscale8_video(brightness);
+      strip_[start_ + i] = c;
+    }
+    break;
+  }
+
+  // The gradient slides along the bar as the cycle runs, so the majority mode
+  // is no longer a picture that simply sits there for fifteen seconds.
+  case SegmentMode::RANDOM_GRADIENT: {
+    const uint8_t amount = fadeAmount(elapsed);
+    const int32_t offset = driftOffset(phaseAt(elapsed));
+    for (int i = 0; i < count_; i++) {
+      CRGB c = blend(from_[i], sampleGradient(i, offset), amount);
       c.nscale8_video(brightness);
       strip_[start_ + i] = c;
     }

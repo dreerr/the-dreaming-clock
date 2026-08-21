@@ -50,8 +50,18 @@ public:
   SegmentMode mode = SegmentMode::RANDOM_GRADIENT;
   CRGB color = CRGB::Black;  // CONSTANT / PULSE / BLINK
   uint8_t brightness = 255;  // applied at render time, so it responds at once
-  uint8_t hueBase = 0;       // RANDOM_GRADIENT: centre of the hue range
-  uint8_t hueSpread = 48;    // RANDOM_GRADIENT: width of the hue range
+  // The gradient modes build a closed loop of `gradientStops` colours picked
+  // within `hueSpread` of `hueBase`. Those two give a segment its character:
+  // a narrow spread with few stops reads as one colour, a wide spread with
+  // many reads as a rainbow — and each segment picks its own.
+  uint8_t hueBase = 0;
+  uint8_t hueSpread = 48;
+  uint8_t gradientStops = 3; // 2..5 distinct colours around the loop
+
+  // How far the gradient slides along the bar over one cycle, as a signed
+  // percentage of the bar's length. The loop is closed, so it can drift
+  // forever without a seam.
+  int8_t driftPercent = 0;
 
   void attach(CRGB *strip, int start, int count);
 
@@ -59,11 +69,21 @@ public:
   // change should be visible without waiting for the current cycle to end.
   void restart(uint32_t now);
 
+  // Change animation mid-cycle, cross-fading out of whatever is on screen.
+  // Unlike restart() this keeps the probability roll, so settling a segment
+  // cannot switch it off underneath a word.
+  void transitionTo(SegmentMode newMode, uint32_t now, uint16_t crossfadeMs);
+
   // Advance to the next cycle if the current one has elapsed.
   void tick(uint32_t now);
 
   // Write this segment's LEDs for the current instant.
   void render(uint32_t now);
+
+  // Rebuild the target from the current palette without disturbing the cycle.
+  // Needed because the target is built when a cycle begins, which is a frame
+  // before the mode layer gets to choose that cycle's colours.
+  void refreshTarget();
 
   bool isLit() const { return lit_; }
 
@@ -91,4 +111,6 @@ private:
   uint8_t fadeAmount(uint32_t elapsed) const;
   uint8_t phaseAt(uint32_t elapsed) const;
   uint8_t envelopeAt(uint8_t phase, int index) const;
+  CRGB sampleGradient(int index, int32_t offsetSub) const;
+  int32_t driftOffset(uint8_t phase) const;
 };
