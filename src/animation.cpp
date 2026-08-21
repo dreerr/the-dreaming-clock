@@ -89,8 +89,13 @@ uint8_t bloomLevel(uint8_t phase, int index, int count) {
   const bool erasing = phase >= 128;
   const uint8_t half = static_cast<uint8_t>((erasing ? phase - 128 : phase) * 2);
 
-  // Overshoot by the edge width so the outermost LEDs are fully reached.
-  const int radius = (rampUp(half) * (centre + kBloomEdge)) / 255;
+  // The radius starts a full edge-width *inside* nothing and overshoots by the
+  // same amount at the end, so each half begins with no effect at all and
+  // finishes having covered the bar completely. Without the negative start, the
+  // soft edge put a full-depth notch in the middle of the bar the instant the
+  // erase began — a visible jump every cycle, measured at up to 148/255.
+  const int radius =
+      -kBloomEdge + (rampUp(half) * (centre + 2 * kBloomEdge)) / 255;
   const int distance = absInt(index * kSub - centre);
 
   int level;

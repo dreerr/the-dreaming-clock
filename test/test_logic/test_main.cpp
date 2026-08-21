@@ -485,10 +485,14 @@ void test_bloom_is_symmetric_about_the_centre(void) {
 
 void test_bloom_grows_from_the_centre_to_the_ends(void) {
   const int count = 10;
-  // At the start only the middle glows and the ends are dark.
-  TEST_ASSERT_EQUAL_UINT8(0, bloomLevel(0, 0, count));
-  TEST_ASSERT_EQUAL_UINT8(0, bloomLevel(0, count - 1, count));
-  TEST_ASSERT_GREATER_THAN_UINT8(0, bloomLevel(0, count / 2, count));
+  // Each half starts having no effect at all, which is what makes the loop
+  // seamless: at phase 0 the bar is still dark from the end of the last cycle.
+  for (int i = 0; i < count; i++) {
+    TEST_ASSERT_EQUAL_UINT8(0, bloomLevel(0, i, count));
+  }
+  // Shortly after, the middle is lit and the ends are not.
+  TEST_ASSERT_GREATER_THAN_UINT8(0, bloomLevel(40, count / 2, count));
+  TEST_ASSERT_EQUAL_UINT8(0, bloomLevel(40, 0, count));
   // By the end of the first half the whole bar is lit.
   for (int i = 0; i < count; i++) {
     TEST_ASSERT_EQUAL_UINT8(255, bloomLevel(127, i, count));
@@ -499,13 +503,50 @@ void test_bloom_grows_from_the_centre_to_the_ends(void) {
 // rather than the light shrinking back the way it came.
 void test_bloom_erases_from_the_centre_in_the_second_half(void) {
   const int count = 10;
-  // Just after the turn the centre goes dark first while the ends stay lit.
-  TEST_ASSERT_LESS_THAN_UINT8(bloomLevel(160, 0, count),
-                              bloomLevel(160, count / 2, count));
-  TEST_ASSERT_EQUAL_UINT8(255, bloomLevel(160, 0, count));
+  // The erase also starts with no effect, so the turn is invisible.
+  for (int i = 0; i < count; i++) {
+    TEST_ASSERT_EQUAL_UINT8(255, bloomLevel(128, i, count));
+  }
+  // Then the centre goes dark first while the ends stay lit.
+  TEST_ASSERT_LESS_THAN_UINT8(bloomLevel(180, 0, count),
+                              bloomLevel(180, count / 2, count));
+  TEST_ASSERT_EQUAL_UINT8(255, bloomLevel(180, 0, count));
   // By the end everything is dark.
   for (int i = 0; i < count; i++) {
     TEST_ASSERT_EQUAL_UINT8(0, bloomLevel(255, i, count));
+  }
+}
+
+// Measured on hardware, the seam where bloom turned from growing to erasing
+// punched a full-depth notch into the middle of the bar in a single frame —
+// changes of up to 148/255. No envelope may step like that.
+void test_envelopes_have_no_visible_seams(void) {
+  const int count = 10;
+  struct { const char *name; uint8_t (*fn)(uint8_t, int, int); } envelopes[] = {
+      {"sweep", sweepLevel}, {"bloom", bloomLevel}};
+
+  for (auto &e : envelopes) {
+    for (int i = 0; i < count; i++) {
+      for (int p = 0; p < 255; p++) {
+        const int step = (int)e.fn((uint8_t)(p + 1), i, count) -
+                         (int)e.fn((uint8_t)p, i, count);
+        if (step > 40 || step < -40) {
+          char msg[96];
+          snprintf(msg, sizeof(msg), "%s LED %d steps %d between phase %d and %d",
+                   e.name, i, step, p, p + 1);
+          TEST_FAIL_MESSAGE(msg);
+        }
+      }
+      // and across the wrap back to the start of the next cycle
+      const int wrap =
+          (int)e.fn(0, i, count) - (int)e.fn(255, i, count);
+      if (wrap > 40 || wrap < -40) {
+        char msg[96];
+        snprintf(msg, sizeof(msg), "%s LED %d steps %d across the wrap", e.name,
+                 i, wrap);
+        TEST_FAIL_MESSAGE(msg);
+      }
+    }
   }
 }
 
@@ -588,6 +629,7 @@ int main(int, char **) {
   RUN_TEST(test_bloom_is_symmetric_about_the_centre);
   RUN_TEST(test_bloom_grows_from_the_centre_to_the_ends);
   RUN_TEST(test_bloom_erases_from_the_centre_in_the_second_half);
+  RUN_TEST(test_envelopes_have_no_visible_seams);
   RUN_TEST(test_sweep_lights_several_leds_at_once);
   RUN_TEST(test_ramp_up_is_monotonic_end_to_end);
   RUN_TEST(test_envelopes_ignore_out_of_range_leds);
