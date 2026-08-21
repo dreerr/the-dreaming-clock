@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>The Dreaming Clock</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div class="container">
+      <h1>⏰ The Dreaming Clock</h1>
+
+      <div class="preview-container">
+        <div id="preview" class="preview-stage"></div>
+        <div id="ws-status" class="ws-status disconnected">⚫ Connecting…</div>
+      </div>
+
+      <div class="center">
+        <button id="wake-button" class="btn btn-large">🔔 Wake Up</button>
+        <p id="status" class="status"></p>
+      </div>
+
+      <div class="center calibration">
+        <button id="calibrate-button" class="btn btn-small">Calibrate LED order</button>
+        <p id="calibration-readout" class="hint" hidden></p>
+      </div>
+
+      <div class="center">
+        <a href="/settings.html" class="link">⚙️ Settings</a>
+      </div>
+    </div>
+    <script type="module" src="index.js"></script>
+  </body>
+</html>

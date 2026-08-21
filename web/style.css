@@ -267,3 +267,79 @@ input[type="password"] {
   color: #1a1a2e;
 }
 
+
+/* --- Live LED preview ---------------------------------------------------- */
+
+.preview-container {
+  background: #05050a;
+  border-radius: 16px;
+  padding: 16px;
+  margin: 20px 0;
+}
+
+.preview-stage {
+  position: relative;
+  width: 100%;
+  line-height: 0;
+}
+
+.led-layer {
+  display: block;
+  width: 100%;
+}
+
+/* The glow layer sits behind the sharp one. Blurring it in CSS hands the bloom
+   to the compositor, so it costs nothing per frame. */
+.led-glow {
+  position: absolute;
+  inset: 0;
+  filter: blur(10px);
+  opacity: 0.75;
+}
+
+.ws-status {
+  text-align: center;
+  font-size: 12px;
+  color: #888;
+  margin-top: 12px;
+}
+.ws-status.connected { color: #4caf50; }
+.ws-status.disconnected { color: #f44336; }
+
+/* --- Layout helpers ------------------------------------------------------ */
+
+.button-row {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.slider-row {
+  gap: 12px;
+}
+.slider-row input[type="range"] { flex: 1; }
+.slider-row output {
+  min-width: 3ch;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.calibration { margin-top: 8px; }
+.btn.active { background: #e94560; }
+
+hr {
+  margin: 1rem 0;
+  border: none;
+  border-top: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.info-box {
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 15px;
+  font-size: 0.9em;
+}
+
+[hidden] { display: none !important; }
