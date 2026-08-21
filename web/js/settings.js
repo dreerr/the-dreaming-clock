@@ -1,7 +1,7 @@
 import { getState, patchState, getTimezones, saveHandler, showStatus } from "./api.js";
 
 const $ = (id) => document.getElementById(id);
-const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const DAY_ORDER = [1, 2, 3, 4, 5, 6, 0]; // display Monday-first, index stays Sunday-first
 
 let state = null;
@@ -17,9 +17,15 @@ function renderDayTable() {
     row.dataset.day = index;
     row.innerHTML = `
       <td>${DAY_NAMES[index]}</td>
-      <td><input type="checkbox" class="day-enabled" ${day.enabled ? "checked" : ""} /></td>
-      <td><input type="number" class="day-start" min="0" max="23" value="${day.start}" /></td>
-      <td><input type="number" class="day-end" min="0" max="23" value="${day.end}" /></td>`;
+      <td><input type="checkbox" class="day-enabled" aria-label="${DAY_NAMES[index]} active" ${
+        day.enabled ? "checked" : ""
+      } /></td>
+      <td><input type="number" class="day-start" min="0" max="23" value="${day.start}" aria-label="${
+        DAY_NAMES[index]
+      } start hour" /></td>
+      <td><input type="number" class="day-end" min="0" max="23" value="${day.end}" aria-label="${
+        DAY_NAMES[index]
+      } end hour" /></td>`;
     tbody.append(row);
   }
 }
@@ -39,19 +45,34 @@ function collectDays() {
 
 function renderNetworkInfo() {
   const { network } = state;
-  const mode = network.activeMode === 0 ? "Captive Portal" : "WiFi Client";
-  const parts = [`<strong>Current:</strong> ${mode}`];
-  if (network.ip) parts.push(`<strong>IP:</strong> ${network.ip}`);
-  if (network.activeMode === 1) parts.push(network.connected ? "🟢 Connected" : "🔴 Disconnected");
-  $("network-info").innerHTML = parts.join(" | ");
+  const parts = [network.activeMode === 0 ? "Access point" : "Joined a network"];
+  if (network.ip) parts.push(network.ip);
+  if (network.activeMode === 1) parts.push(network.connected ? "connected" : "disconnected");
+  $("network-info").innerHTML = `<strong>${parts[0]}</strong>${
+    parts.length > 1 ? " · " + parts.slice(1).join(" · ") : ""
+  }`;
 }
 
 function renderTimeInfo() {
   const { time } = state;
-  const source = time.ntpSynced ? "NTP" : time.rtcPresent ? "RTC" : "internal (lost on power cycle)";
-  $("time-info").textContent = time.valid
-    ? `${String(time.hour).padStart(2, "0")}:${String(time.minute).padStart(2, "0")} · source: ${source}`
-    : "Time not set";
+  if (!time.valid) {
+    $("time-info").innerHTML = "<strong>Not set</strong>";
+    return;
+  }
+  const source = time.ntpSynced ? "NTP" : time.rtcPresent ? "RTC" : "internal, lost on power cycle";
+  const clock = `${String(time.hour).padStart(2, "0")}:${String(time.minute).padStart(2, "0")}`;
+  $("time-info").innerHTML = `<strong>${clock}</strong> · ${time.timezone} · ${source}`;
+}
+
+// The segmented control shows which mode the clock is actually in, so it is
+// state rather than three buttons that look identical.
+function renderMode() {
+  for (const button of document.querySelectorAll("[data-mode]")) {
+    button.setAttribute(
+      "aria-pressed",
+      String(button.dataset.mode === state.display.mode),
+    );
+  }
 }
 
 function toggleNetworkMode() {
@@ -60,7 +81,7 @@ function toggleNetworkMode() {
 
 function toggleActiveHours() {
   const enabled = $("activeHoursEnabled").checked;
-  $("activeHoursConfig").style.opacity = enabled ? "1" : "0.5";
+  $("activeHoursConfig").style.opacity = enabled ? "1" : "0.35";
   $("activeHoursConfig").style.pointerEvents = enabled ? "auto" : "none";
 }
 
@@ -75,8 +96,8 @@ function apply() {
   $("networkMode").value = String(state.network.mode);
   $("wifiSSID").value = state.network.ssid || "";
   $("fallbackEnabled").checked = state.network.fallback;
-  $("current-mode").textContent = state.display.mode;
 
+  renderMode();
   renderDayTable();
   renderNetworkInfo();
   renderTimeInfo();

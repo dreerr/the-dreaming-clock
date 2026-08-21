@@ -123,11 +123,12 @@ the time. A live indicator, the calibration toggle and a link to the settings si
 in the top-right corner.
 
 ### Settings Page (`/settings.html`)
-- **Time** - Timezone (with DST), plus manual time entry for offline use
-- **Display** - Switch mode, set brightness for time and dream separately
-- **Active Hours** - Display schedule per weekday
+Same black, minimal language as the clock page.
+- **Time** - Timezone (with DST), plus manual entry for offline use
+- **Display** - Mode, and brightness for time and dream separately
+- **Active Hours** - Schedule per weekday
 - **Auto Wakeup** - How often the clock shows the time by itself
-- **Network** - Captive portal or WiFi client
+- **Network** - Access point or joining a network
 
 ## 🔌 REST API
 

@@ -1,327 +1,39 @@
+/* ==========================================================================
+   The Dreaming Clock
+   Black, hairlines, small dim labels, one green accent. The clock page is the
+   reference; the settings page is the same language with more to say.
+   ========================================================================== */
+
+:root {
+  --bg: #000;
+  --text: #e8e8e8;
+  --dim: #8a8a8a;
+  --faint: #5c5c5c;
+  --line: rgba(255, 255, 255, 0.1);
+  --line-strong: rgba(255, 255, 255, 0.28);
+  --field: #0d0d0d;
+  --accent: #22c55e;
+  --danger: #f87171;
+}
+
 * {
   box-sizing: border-box;
 }
 
 body {
   margin: 0;
-  padding: 0;
-  min-height: 100vh;
-  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
-  color: white;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font: 400 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  accent-color: var(--accent);
 }
-
-.container {
-  max-width: 500px;
-  margin: 0 auto;
-  padding: 20px;
-}
-
-h1 {
-  text-align: center;
-  margin: 20px 0 30px;
-  font-size: 1.8em;
-}
-
-h2 {
-  margin: 0 0 15px;
-  font-size: 1.2em;
-  color: #e94560;
-}
-
-.card {
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 16px;
-  padding: 20px;
-  margin-bottom: 20px;
-  backdrop-filter: blur(10px);
-}
-
-.form-row {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 5px;
-  margin-bottom: 15px;
-}
-
-input[type="number"]::-webkit-inner-spin-button,
-input[type="number"]::-webkit-outer-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
-}
-
-input[type="number"] {
-  -webkit-appearance: none;
-  -moz-appearance: textfield;
-  appearance: textfield;
-}
-
-input {
-  border: none;
-  padding: 12px;
-  border-radius: 8px;
-  font-size: 18px;
-  text-align: center;
-  background: rgba(255, 255, 255, 0.9);
-  color: #1a1a2e;
-  width: 70px;
-}
-
-input.small {
-  width: 55px;
-}
-
-input:focus {
-  outline: 2px solid #e94560;
-}
-
-.divider {
-  font-size: 24px;
-  font-weight: bold;
-  color: #e94560;
-}
-
-.btn {
-  display: inline-block;
-  background: #e94560;
-  color: white;
-  border: none;
-  padding: 12px 24px;
-  border-radius: 8px;
-  font-size: 16px;
-  font-weight: bold;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.btn:hover {
-  background: #ff6b6b;
-  transform: translateY(-2px);
-}
-
-.btn:active {
-  transform: translateY(0);
-}
-
-.btn-large {
-  width: 100%;
-  padding: 20px;
-  font-size: 18px;
-}
-
-.btn-small {
-  padding: 8px 16px;
-  font-size: 14px;
-  margin-right: 10px;
-}
-
-.select {
-  width: 100%;
-  padding: 12px;
-  border-radius: 8px;
-  border: none;
-  font-size: 16px;
-  background: rgba(255, 255, 255, 0.9);
-  color: #1a1a2e;
-  margin-bottom: 15px;
-}
-
-#timezone {
-  margin-bottom: 0;
-}
-
-.select:focus {
-  outline: 2px solid #e94560;
-}
-
-.toggle {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  cursor: pointer;
-}
-
-.toggle input[type="checkbox"] {
-  width: 20px;
-  height: 20px;
-  cursor: pointer;
-}
-
-.schedule-table {
-  width: 100%;
-  border-collapse: collapse;
-  margin: 15px 0;
-  font-size: 14px;
-}
-
-.schedule-table th {
-  text-align: left;
-  padding: 8px 4px;
-  color: #aaa;
-  font-weight: normal;
-  border-bottom: 1px solid rgba(255,255,255,0.2);
-}
-
-.schedule-table td {
-  padding: 8px 4px;
-}
-
-.schedule-table input[type="checkbox"] {
-  width: 18px;
-  height: 18px;
-}
-
-.schedule-table input[type="number"] {
-  width: 50px;
-  padding: 8px;
-  font-size: 14px;
-}
-
-.hint {
-  color: #aaa;
-  font-size: 14px;
-  margin: 0 0 15px;
-}
-
-.status {
-  display: inline-block;
-  margin-left: 10px;
-  font-size: 14px;
-  transition: opacity 0.3s;
-}
-
-.status.success {
-  color: #4ade80;
-}
-
-.status.error {
-  color: #f87171;
-}
-
-.link {
-  display: block;
-  text-align: center;
-  color: #e94560;
-  text-decoration: none;
-  padding: 20px;
-}
-
-.link:hover {
-  text-decoration: underline;
-}
-
-/* Legacy support for index.html */
-/* A centring utility, not a page wrapper. The old single-wrapper version forced
-   min-height: 100vh, which put a full blank screen between every section. */
-.center {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
-}
-
-.button {
-  width: 60%;
-  max-width: 300px;
-  cursor: pointer;
-  transition: transform 0.2s;
-}
-
-.button:hover {
-  transform: scale(1.05);
-}
-
-/* Network settings */
-.info-box {
-  background: rgba(0, 0, 0, 0.3);
-  border-radius: 8px;
-  padding: 12px;
-  margin-bottom: 15px;
-  font-size: 14px;
-  text-align: center;
-}
-
-#clientConfig {
-  background: rgba(0, 0, 0, 0.2);
-  border-radius: 8px;
-  padding: 15px;
-  margin-bottom: 15px;
-}
-
-.form-row label {
-  min-width: 100px;
-  text-align: left;
-}
-
-input[type="text"],
-input[type="password"] {
-  flex: 1;
-  width: auto;
-  text-align: left;
-  padding: 12px;
-  border-radius: 8px;
-  border: none;
-  font-size: 16px;
-  background: rgba(255, 255, 255, 0.9);
-  color: #1a1a2e;
-}
-
 
 /* ==========================================================================
-   The clock page (body.stage)
-   --------------------------------------------------------------------------
-   Deliberately bare: black, no chrome, the clock itself is the only content
-   and the only control. Scoped to .stage so the settings page keeps its own
-   look.
+   Corner controls — shared by both pages
    ========================================================================== */
-
-body.stage {
-  background: #000;
-  height: 100vh;
-  height: 100dvh;
-  overflow: hidden;
-  -webkit-tap-highlight-color: transparent;
-}
-
-/* The clock fills the viewport and centres its canvases; the canvases
-   themselves are sized in JS so they always keep the artwork's aspect ratio. */
-.clock {
-  position: relative;
-  display: block;
-  width: 100%;
-  height: 100vh;
-  height: 100dvh;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  background: none;
-  cursor: pointer;
-  appearance: none;
-}
-
-.clock:focus-visible {
-  outline: 1px solid rgba(255, 255, 255, 0.25);
-  outline-offset: -4px;
-}
-
-.led-layer {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  display: block;
-  pointer-events: none;
-}
-
-/* The glow layer sits behind the sharp one. Blurring it in CSS hands the bloom
-   to the compositor, so it costs nothing per frame. */
-.led-glow {
-  filter: blur(16px);
-  opacity: 0.55;
-}
-
-/* --- Top-right controls -------------------------------------------------- */
 
 .topbar {
   position: fixed;
@@ -336,6 +48,15 @@ body.stage {
   padding-right: max(20px, env(safe-area-inset-right));
 }
 
+/* On the settings page the bar sits over scrolling content, so it needs a
+   backdrop to stay legible. The clock page has nothing behind it. */
+body:not(.stage) .topbar {
+  left: 0;
+  justify-content: flex-end;
+  padding-bottom: 30px;
+  background: linear-gradient(#000 55%, rgba(0, 0, 0, 0));
+}
+
 .live-dot {
   width: 7px;
   height: 7px;
@@ -345,7 +66,7 @@ body.stage {
 }
 
 .live-dot.connected {
-  background: #22c55e;
+  background: var(--accent);
 }
 
 .icon-button {
@@ -369,7 +90,7 @@ body.stage {
 
 .icon-button[aria-pressed="true"] {
   opacity: 1;
-  color: #22c55e;
+  color: var(--accent);
 }
 
 .icon-button svg {
@@ -386,7 +107,54 @@ body.stage {
   fill: currentColor;
 }
 
-/* --- Transient line at the bottom ---------------------------------------- */
+/* ==========================================================================
+   The clock page
+   --------------------------------------------------------------------------
+   Deliberately bare: the clock is the only content and the only control.
+   ========================================================================== */
+
+body.stage {
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+}
+
+/* The clock fills the viewport and centres its canvases; the canvases
+   themselves are sized in JS so they always keep the artwork's aspect ratio. */
+.clock {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100vh;
+  height: 100dvh;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  appearance: none;
+}
+
+.clock:focus-visible {
+  outline: 1px solid var(--line-strong);
+  outline-offset: -4px;
+}
+
+.led-layer {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: block;
+  pointer-events: none;
+}
+
+/* The glow layer sits behind the sharp one. Blurring it in CSS hands the bloom
+   to the compositor, so it costs nothing per frame. */
+.led-glow {
+  filter: blur(16px);
+  opacity: 0.55;
+}
 
 .readout {
   position: fixed;
@@ -405,40 +173,379 @@ body.stage {
 }
 
 .readout.error {
-  color: #f87171;
+  color: var(--danger);
 }
 
-/* --- Shared helpers still used by the settings page ---------------------- */
+/* ==========================================================================
+   The settings page
+   ========================================================================== */
 
-.button-row {
+.sheet {
+  max-width: 560px;
+  margin: 0 auto;
+  padding: 84px 24px 96px;
+  padding-bottom: max(96px, env(safe-area-inset-bottom));
+}
+
+.sheet section {
+  border-top: 1px solid var(--line);
+  padding: 30px 0;
+}
+
+.sheet section:first-of-type {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.sheet h2 {
+  margin: 0 0 20px;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+/* A line of the form "label ............ control" */
+.row {
   display: flex;
-  gap: 8px;
-  justify-content: center;
-  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 38px;
 }
 
-.slider-row {
-  gap: 12px;
+.row + .row {
+  margin-top: 6px;
 }
-.slider-row input[type="range"] { flex: 1; }
-.slider-row output {
-  min-width: 3ch;
-  text-align: right;
+
+.row > label {
+  color: var(--dim);
+  font-size: 14px;
+}
+
+.row .grow {
+  flex: 1;
+  min-width: 0;
+}
+
+.note {
+  margin: 0 0 18px;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--faint);
+}
+
+.state {
+  margin: 0 0 20px;
+  font-size: 13px;
+  color: var(--dim);
   font-variant-numeric: tabular-nums;
 }
 
-hr {
-  margin: 1rem 0;
-  border: none;
-  border-top: 1px solid rgba(255, 255, 255, 0.15);
+.state strong {
+  color: var(--text);
+  font-weight: 500;
 }
 
-.info-box {
-  background: rgba(0, 0, 0, 0.25);
-  border-radius: 8px;
-  padding: 10px 12px;
-  margin-bottom: 15px;
-  font-size: 0.9em;
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 22px;
+  flex-wrap: wrap;
 }
 
-[hidden] { display: none !important; }
+/* --- Fields --------------------------------------------------------------- */
+
+input[type="text"],
+input[type="password"],
+input[type="number"],
+select {
+  min-width: 0;
+  padding: 9px 11px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--field);
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  transition: border-color 0.15s ease;
+}
+
+input:focus,
+select:focus {
+  border-color: var(--line-strong);
+  outline: none;
+}
+
+select {
+  appearance: none;
+  padding-right: 30px;
+  background-image: linear-gradient(45deg, transparent 50%, var(--dim) 50%),
+    linear-gradient(135deg, var(--dim) 50%, transparent 50%);
+  background-position: calc(100% - 15px) 51%, calc(100% - 10px) 51%;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  cursor: pointer;
+}
+
+input[type="number"] {
+  width: 3.4rem;
+  text-align: center;
+}
+
+input[type="number"].wide {
+  width: 4.6rem;
+}
+
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  appearance: none;
+  margin: 0;
+}
+
+input[type="number"] {
+  -moz-appearance: textfield;
+}
+
+.time-fields {
+  display: flex;
+  align-items: center;
+  gap: 10px 22px;
+  flex-wrap: wrap;
+}
+
+.field-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.time-fields .sep {
+  color: var(--faint);
+}
+
+/* --- Buttons -------------------------------------------------------------- */
+
+.btn {
+  padding: 8px 18px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.btn:hover,
+.btn:focus-visible {
+  border-color: #fff;
+  outline: none;
+}
+
+.btn.quiet {
+  border-color: var(--line);
+  color: var(--dim);
+}
+
+.btn.quiet:hover {
+  border-color: var(--line-strong);
+  color: var(--text);
+}
+
+/* Segmented control for the display mode. */
+.segmented {
+  display: inline-flex;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.segmented button {
+  padding: 8px 18px;
+  border: 0;
+  background: none;
+  color: var(--dim);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.segmented button + button {
+  border-left: 1px solid var(--line);
+}
+
+.segmented button:hover {
+  color: var(--text);
+}
+
+.segmented button[aria-pressed="true"] {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+/* --- Switch --------------------------------------------------------------- */
+
+.switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  color: var(--dim);
+  font-size: 14px;
+}
+
+.switch input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.switch .track {
+  position: relative;
+  flex: none;
+  width: 38px;
+  height: 22px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  transition: background 0.2s ease;
+}
+
+.switch .track::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.2s ease;
+}
+
+.switch input:checked + .track {
+  background: var(--accent);
+}
+
+.switch input:checked + .track::after {
+  transform: translateX(16px);
+}
+
+.switch input:focus-visible + .track {
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.3);
+}
+
+/* --- Sliders -------------------------------------------------------------- */
+
+input[type="range"] {
+  flex: 1;
+  min-width: 0;
+  height: 2px;
+  appearance: none;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  cursor: pointer;
+}
+
+input[type="range"]::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border: 0;
+  border-radius: 50%;
+  background: #fff;
+  cursor: pointer;
+}
+
+.row output {
+  min-width: 3ch;
+  text-align: right;
+  font-size: 13px;
+  color: var(--dim);
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- Weekly schedule ------------------------------------------------------ */
+
+.schedule {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.schedule th {
+  padding: 0 0 10px;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--faint);
+  text-align: left;
+}
+
+.schedule th:not(:first-child),
+.schedule td:not(:first-child) {
+  text-align: center;
+  width: 4.5rem;
+}
+
+.schedule td {
+  padding: 5px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  color: var(--dim);
+}
+
+.schedule input[type="number"] {
+  width: 3.5rem;
+  padding: 6px 4px;
+}
+
+.schedule input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+#activeHoursConfig {
+  transition: opacity 0.2s ease;
+}
+
+/* --- Inline save feedback ------------------------------------------------- */
+
+/* Never reserve space for a message that is not there. */
+.status:empty {
+  display: none;
+}
+
+.status {
+  font-size: 13px;
+  color: var(--faint);
+  transition: opacity 0.3s ease;
+}
+
+.status.success {
+  color: var(--accent);
+}
+
+.status.error {
+  color: var(--danger);
+}
+
+[hidden] {
+  display: none !important;
+}
