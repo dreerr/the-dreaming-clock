@@ -1,194 +1,58 @@
-# The Dreaming Clock - Project Structure
+# The Dreaming Clock — Project Structure
 
-An ESP32-C3-based 7-segment LED clock with web interface, RTC module (with internal fallback), and persistent settings.
+An ESP32-C3 7-segment LED clock: 282 APA102 LEDs arranged as four digits and a
+colon, driven by a probability-based animation engine, configured over a web
+interface, with an optional DS1307 RTC.
 
-## Overview
+## Layout
 
 ```
 dreamy-clock-esp32/
-├── platformio.ini          # PlatformIO configuration
-├── src/                    # Source code
-│   ├── main.cpp            # Main program (Setup & Loop)
-│   ├── settings.h          # Constants, global variables & persistent settings
-│   ├── rtc.h               # RTC module (DS1307) with internal time fallback
-│   ├── leds.h              # LED setup & main loop (includes display modes)
-│   ├── display.h           # Display functions (setChar, setDigit, setNumber)
-│   ├── patterns.h          # 7-segment patterns for digits & letters
-│   ├── dreams.h            # Dream words & subliminal message system
-│   ├── wakeup.h            # Wakeup/sleep logic & auto-wakeup timer
-│   ├── segment.h           # Segment class for animations
-│   ├── network.h           # WiFi & Captive Portal
-│   ├── ota.h               # Over-The-Air Updates
-│   ├── web.h               # REST API Webserver
-│   └── websocket.h         # WebSocket LED preview
-├── data/                   # LittleFS filesystem (Web frontend)
-│   ├── index.html          # Homepage with wakeup button
-│   ├── settings.html       # Settings page (time, active hours, wakeup interval)
-│   ├── style.css           # Styling
-│   └── script.js           # (empty, JS is inline in HTML)
-└── lib/                    # Private libraries (empty)
+├── platformio.ini        # Build config; every dependency pinned
+├── partitions.csv        # 1.625 MB app slots + 640 KB LittleFS
+├── src/                  # Firmware (one .h/.cpp pair per module)
+├── web/                  # Frontend source (bundled into data/)
+├── data/                 # Build output, flashed to LittleFS — committed
+├── test/test_logic/      # Host-side unit tests
+└── scripts/build_web.py  # PlatformIO pre-hook: rebuilds web/ -> data/
 ```
-
----
 
 ## Hardware
 
 | Component | Description |
 |-----------|-------------|
-| **MCU** | ESP32-C3-DevKitM-1 |
-| **LEDs** | 282x APA102 (Dotstar) in 7-segment arrangement |
-| **RTC** | DS1307 Real-Time Clock module |
-
-### Pin Assignment
+| MCU | ESP32-C3-DevKitM-1 (4 MB flash) |
+| LEDs | 282× APA102 (DotStar) |
+| RTC | DS1307 (optional — the clock runs on NTP without it) |
 
 | Function | GPIO |
 |----------|------|
-| LED Data (APA102) | 6 |
-| LED Clock (APA102) | 7 |
-| I2C SDA (RTC) | 4 |
-| I2C SCL (RTC) | 5 |
+| LED data | 6 |
+| LED clock | 7 |
+| I²C SDA | 4 |
+| I²C SCL | 5 |
+
+All of this lives in `src/config.h`, including `segmentLedStart()` — the single
+definition of how the 29 segments map onto the strip. The colon sits physically
+in the middle, so digit segments after it are offset by two LEDs. Both the
+renderer and the web preview derive their mapping from that one function.
 
 ---
 
 ## Modules
 
-### main.cpp
-**Entry point** - Initializes all subsystems and runs the main loop.
+Each module is a `.h` declaring the interface and a `.cpp` defining it. No
+module defines globals in its header, so include order does not matter.
 
-```
-setup() → RTC → Settings → Network → OTA → Web → LEDs
-loop()  → Network → OTA → LEDs
-```
+### `config.h`
+Compile-time constants: pins, LED counts, hostname, OTA password (from the
+`CLOCK_OTA_PASSWORD` build flag). `static_assert`s check that the segment→LED
+mapping covers the strip exactly.
 
-**Defines global variables:**
-- `wakeup` - Flag to "wake up" the display
-- `timeWasSet` - Whether the RTC time has been set
+### `patterns` — 7-segment glyphs
+`glyphFor(char)` returns the bit pattern for a character; `isRenderable(char)`
+reports whether it has one. Arduino-free, so it is unit-tested on the host.
 
-### settings.h
-**Constants, global variables & persistent settings** - Central configuration file.
-
-**Global Constants:**
-
-| Constant | Value | Description |
-|----------|-------|-------------|
-| `AP_SSID` | "the dreaming clock" | WiFi Access Point name |
-| `HOSTNAME` | "the-dreaming-clock" | mDNS hostname |
-| `HTTPHOST` | "http://the-dreaming-clock.local" | HTTP URL |
-| `USE_CAPTIVE` | true | Enable Captive Portal |
-
-**Global Variables (extern):**
-- `wakeup` - Flag to "wake up" the display
-- `timeWasSet` - Whether the RTC time has been set
-
-**Data Structures:**
-```cpp
-struct DaySchedule {
-  bool enabled;      // Day active?
-  uint8_t startHour; // Start time (0-23)
-  uint8_t endHour;   // End time (0-23)
-};
-
-struct ClockSettings {
-  bool useActiveHours;    // Active Hours feature enabled?
-  DaySchedule days[7];    // Schedule per weekday (0=Sun, 1=Mon, ...)
-  int wakeupInterval;     // Auto-wakeup in minutes (0=off)
-};
-```
-
-| Function | Description |
-|----------|-------------|
-| `setupSettings()` | Loads settings from NVS |
-| `saveSettings()` | Saves all settings |
-| `saveActiveHours()` | Saves only Active Hours |
-| `saveWakeupInterval()` | Saves only Wakeup Interval |
-| `isDisplayActiveTime(hour, weekday)` | Checks if display should be active at this time |
-
-**Wakeup Intervals:**
-- 0 = Off
-- 5, 15, 30 = Minutes
-- 60, 120, 180, 240, 360 = Hours (1-6h)
-
-### rtc.h
-**Real-Time Clock** - Manages the DS1307 RTC module via I2C with automatic fallback to internal ESP32 time.
-
-**Time Source Priority:**
-1. **External RTC (DS1307)**: Preferred, persists across power cycles
-2. **Internal Time**: Fallback when RTC not connected, uses `millis()` for timekeeping
-
-**Global Variables:**
-
-| Variable | Type | Description |
-|----------|------|-------------|
-| `rtcInitialized` | bool | True if external RTC is connected and working |
-| `usingInternalTime` | bool | True if using internal fallback (no RTC) |
-
-| Function | Description |
-|----------|-------------|
-| `setupRTC()` | Initializes I2C, detects RTC, falls back to internal time if needed |
-| `setRTCTime(h, m, s, d, mo, y)` | Sets date and time (works with both RTC and internal) |
-| `getCurrentTime()` | Returns current DateTime from RTC or internal fallback |
-
-**Internal Time Fallback:**
-- When RTC is not connected, time is tracked using `millis()` elapsed since last set
-- Default time on boot: January 1, 2025, 00:00:00
-- Time will be lost on power cycle (no battery backup)
-- User can set time via web interface, which works normally
-
-### leds.h
-**LED Control** - Main LED setup and loop, includes sub-modules.
-
-**Constants:**
-
-| Constant | Value | Description |
-|----------|-------|-------------|
-| `FRAMES_PER_SECOND` | 60 | Frame rate limit |
-| `DATA_PIN` | 6 | APA102 data GPIO |
-| `CLOCK_PIN` | 7 | APA102 clock GPIO |
-| `NUM_LEDS` | 282 | Total LED count |
-| `NUM_SEGMENTS` | 29 | 4 digits × 7 + colon |
-| `LEDS_PER_SEGMENT` | 10 | LEDs per digit segment |
-| `COLON_LEDS` | 2 | LEDs in colon |
-| `COLON_INDEX` | 28 | Segment index for colon |
-
-**Display Modes (enum DisplayMode):**
-
-| Mode | Description |
-|------|-------------|
-| `MODE_OFF` | Display is off (outside active hours) |
-| `MODE_TIME_NOT_SET` | Blinking "00:00" to indicate RTC needs configuration |
-| `MODE_DREAM` | Random colors with subliminal dream words |
-| `MODE_WAKEUP` | Showing current time clearly for 15 seconds |
-
-| Function | Description |
-|----------|-------------|
-| `setupLEDs()` | Initializes FastLED and segments, starts in dream mode |
-| `loopLEDs()` | Main loop (limited to 60 FPS), handles mode switching |
-| `enterDreamMode()` | Transitions to dream mode with random patterns |
-| `enterWakeupMode()` | Transitions to wakeup mode showing time |
-| `handleTimeNotSet()` | Mode handler: blinking zeros |
-| `handleDreamMode()` | Mode handler: random patterns + dream words |
-| `handleWakeupMode()` | Mode handler: show current time |
-
-**Dream Word Functions:**
-
-| Function | Description |
-|----------|-------------|
-| `setDreamWord(word, opacity)` | Sets a word on display with given opacity |
-| `startDreamWord()` | Starts showing a random dream word |
-| `endDreamWord()` | Ends current word, returns to pure random |
-| `updateDreamWord()` | Updates dream word animation (called every frame) |
-
-**Behavior:**
-1. **Time not set**: Blinking "00:00"
-2. **Outside Active Hours**: Display off (based on settings)
-3. **Dream mode**: Random color gradients with subliminal words fading in/out
-4. **Wakeup mode**: Shows time for 15 seconds, then back to dream mode
-5. **Auto-wakeup**: Automatic wakeup based on interval setting
-
-### patterns.h
-**7-Segment Patterns** - Bit patterns for displaying digits and letters.
-
-**Layout:**
 ```
     ┌───5───┐
     │       │
@@ -198,318 +62,214 @@ struct ClockSettings {
     │       │
     0       2
     │       │
-    └───1───┘
+    └───1───┘        bit order [6][5][4][3][2][1][0]
 ```
 
-| Data | Description |
-|------|-------------|
-| `segmentPatterns[]` | Bit patterns for 0-9 and A-Z |
+**A 7-segment cell has one glyph per letter, so case is not distinguishable.**
+`'b'` and `'B'` return the same pattern. Mixed case in the word list is a note
+about which shape is drawn, nothing more.
 
-| Function | Description |
-|----------|-------------|
-| `getPatternIndex(char)` | Returns pattern index for a character |
+### `schedule` — active hours and wakeup slots
+`isDisplayActiveTime()` (supports overnight windows) and
+`minutesToNextWakeupSlot()`, which aligns wakeups to midnight. Aligning to
+midnight rather than to the current minute is what makes intervals longer than
+an hour work — `minute % 120` can never align, because `minute` never exceeds
+59. Arduino-free and unit-tested.
 
-### display.h
-**Display Functions** - High-level functions to show content on the display.
+### `segment` — the animation engine
 
-| Function | Description |
-|----------|-------------|
-| `setChar(pos, char, opacity)` | Sets a character (0-9, A-Z) at position |
-| `setDigit(pos, value, opacity)` | Sets a digit (0-9) at position |
-| `setNumber(value, opacity)` | Sets 4-digit number |
-| `showCurrentTime()` | Displays current time with blinking colon |
+The heart of the project. A segment is **driven by probability, not by
+brightness**: the display layer sets a probability, and once per animation cycle
+the segment rolls against it to decide whether it lights up for the next cycle.
 
-### wakeup.h
-**Wakeup/Sleep Logic** - Controls display wakeup and sleep states.
+| Input | Meaning |
+|-------|---------|
+| `probability` | 0 = never lit, 255 = always lit, in between = flickers in and out |
+| `cycleMs` | length of one animation cycle (1–15 s while dreaming) |
+| `fadeMs` | crossfade into the new cycle's target |
+| `mode` | `CONSTANT`, `RANDOM_GRADIENT`, `PULSE`, `BLINK` |
+| `color`, `brightness` | for the non-gradient modes |
+| `hueBase`, `hueSpread` | hue range for `RANDOM_GRADIENT` |
 
-**Constants:**
+Two methods, and the split between them matters:
 
-| Constant | Value | Description |
-|----------|-------|-------------|
-| `WAKEUP_DURATION_MS` | 15000 | Time display stays on after wakeup |
+- `tick(now)` is the **only** thing that touches scheduling state. Once per
+  cycle it snapshots what is on screen, rolls the probability, and builds the
+  new target.
+- `render(now)` is a **pure function of the elapsed time** since the cycle
+  began. It cannot reset the animation clock, which is what used to make
+  crossfades freeze when a caller re-issued a colour every frame.
 
-| Function | Description |
-|----------|-------------|
-| `goSleep()` | Calls `enterDreamMode()` to return to dream state |
-| `triggerAutoWakeup()` | Triggers a wakeup event |
-| `scheduleAutoWakeup()` | Schedules next automatic wakeup |
-| `startSleepTimer()` | Starts timer to go back to sleep |
+`probability == 255` is special-cased to mean *always*, because `random8() < 255`
+still fails one cycle in 256 and the clock display has to be steady.
 
-### dreams.h
-**Dream Words** - Subliminal messages displayed during dream phase.
+### `display` — glyphs onto segments
+`setChar`, `setWord`, `setNumber`, and `setWordOverNoise` — the last of which
+keeps a background probability on the segments *outside* the glyph, so a word
+condenses out of the dream noise instead of being pasted over it.
 
-**Word Selection:**
-Only characters that display well on 7-segment displays are used:
-- Uppercase: A, C, E, F, G, H, L, O, P, S, U
-- Lowercase (distinct shapes): b, c, d, n, o, r, t, u
+### `dreams` — the word list
+87 four-character words. `nextDreamWord()` picks one, avoiding an immediate
+repeat. **This function is the seam for external data sources**: an HTTP- or
+MQTT-fed word list replaces it without the mode layer changing. Arduino-free;
+the tests assert every word is exactly four renderable characters (a missing
+comma once concatenated two words into one).
 
-**Word Categories:**
-- Ethereal & Dreamy (HALO, HOPE, GLOW, FADE, etc.)
-- Calming (SAFE, SANE, SURE, HELD, etc.)
-- Abstract (LOOP, SEED, FLEE, FUSE, etc.)
-- Playful lowercase mix (bEEp, bUbS, duSt, etc.)
-- Nature-ish (SunS, LEAF, FERN, POOL, etc.)
-- German words (HASE, EGAL, FELD, GOLD, etc.)
+### `modes` — the state machine
 
-**Configuration Constants:**
+| Mode | Behaviour |
+|------|-----------|
+| `OFF` | Outside active hours; the strip is blanked |
+| `TIME_NOT_SET` | 00:00 blinking, via the `BLINK` segment mode |
+| `DREAM` | Drifting noise with words condensing out of it |
+| `PATTERN` | Drifting noise, no words |
+| `WAKEUP` | The time, shown solidly for 15 s |
 
-| Constant | Value | Description |
-|----------|-------|-------------|
-| `DREAM_WORD_MAX_OPACITY` | 80 | Maximum brightness (0-255) |
-| `DREAM_WORD_MIN_OPACITY` | 15 | Minimum brightness ("barely visible") |
-| `DREAM_WORD_DISPLAY_MS` | 4000 | Duration word is visible (ms) |
-| `DREAM_WORD_PAUSE_MS` | 8000 | Pause between words (ms) |
-| `DREAM_WORD_FADE_SPEED` | 1 | Animation speed (1-4) |
-| `DREAM_WORD_PROBABILITY` | 180 | Chance to show word (0-255) |
+Timers are three `Deadline` structs — a rollover-safe one-shot each for the
+sleep timer, the auto-wakeup and the dream-word cycle. They replaced an external
+`Timer` library that was unpinned, GPL-licensed, and handed out slot indices
+that went stale after firing. `updateMode()` services them **in every mode**,
+including `OFF`, so a wakeup scheduled during off-hours is not left pending.
 
-| Function | Description |
-|----------|-------------|
-| `getRandomDreamWord()` | Returns a random word from the list |
+### `clock_time` — time
 
-### segment.h
-**Segment Class** - Animation logic for individual LED segments.
+The ESP32 system clock is the single time base and holds **UTC**. The DS1307 is
+a seed at boot and a sink for NTP results, not a parallel source of truth. The
+configured IANA timezone is mapped to a POSIX TZ string (`timezones.cpp`) and
+applied with `setenv`/`tzset`, so changing it actually changes the display.
 
-| Property | Description |
-|----------|-------------|
-| `opacity` | Brightness (0-255) |
-| `speed` | Animation speed (1-4) |
-| `mode` | `RANDOM` or `COLOR` |
+NTP runs whenever a network is available, regardless of whether the RTC is
+present, and writes its result back to the RTC. `nowLocal()` is cached, so
+calling it every frame costs nothing.
 
-| Method | Description |
-|--------|-------------|
-| `fillColor(color, speed)` | Fills segment with color |
-| `fillRandomGradient()` | Generates random color gradient |
-| `draw()` | Draws current frame (blend animation) |
+### `net_wifi` — WiFi
 
-**Animation:** Smooth blending between `current` and `target` colors using `quadwave8()`.
+Captive portal (AP `the dreaming clock`, 192.168.4.1) or WiFi client. Fully
+event-driven: association is started and the result arrives as a WiFi event, so
+nothing blocks the main loop. `requestNetworkRestart()` defers the actual
+teardown to `loop()` — it must never run inside the AsyncTCP task.
 
-### network.h
-**Network** - WiFi Access Point with Captive Portal.
+### `state` — the canonical document
 
-| Mode | Description |
-|------|-------------|
-| **Captive** | Creates AP "the dreaming clock", redirects all requests |
-| **Client** | Connects to configured WiFi networks |
+`serializeState()` and `applyCommand()`. **Every transport reads and writes
+through these two functions**, so validation lives in exactly one place and the
+representations cannot drift. This is the seam a Home Assistant / MQTT
+integration plugs into.
 
-- IP: `192.168.4.1`
-- DNS server for Captive Portal
-- mDNS: `the-dreaming-clock.local`
-
-### ota.h
-**Over-The-Air Updates** - Firmware updates via WiFi.
-
-- Port: 3232
-- Password: `kei6yahghohngooS`
-- Upload via: `the-dreaming-clock.local`
-
-### web.h
-**REST API Webserver** - Async HTTP server on port 80 with JSON responses.
+### `web` — HTTP API
 
 | Route | Method | Description |
 |-------|--------|-------------|
-| `/` | GET | index.html |
-| `/settings` | GET | Settings page |
-| `/api/time` | GET | Current time as JSON |
-| `/api/time` | POST | Set time (hours, minutes, day, month, year) |
-| `/api/active-hours` | GET | Active Hours settings as JSON |
-| `/api/active-hours` | POST | Save Active Hours |
-| `/api/wakeup-interval` | GET | Wakeup Interval as JSON |
-| `/api/wakeup-interval` | POST | Save Wakeup Interval |
-| `/api/network` | GET | Network settings as JSON |
-| `/api/network` | POST | Save Network settings |
-| `/api/timezone` | GET | Timezone setting as JSON |
-| `/api/timezone` | POST | Save Timezone |
-| `/wakeup` | POST | Manual wakeup |
+| `/api/state` | GET | The complete device state |
+| `/api/state` | POST | Apply settings (JSON body) |
+| `/api/timezones` | GET | Supported timezone names |
+| `/api/wakeup` | POST | Show the time now |
 | `/*` | GET | Static files from LittleFS |
 
-**API Response Format:**
-```json
-{
-  "success": true,
-  "message": "Optional message"
-}
-```
+Unknown `/api/*` paths return **404**, not a redirect to the UI — an
+integration must be able to tell a typo from a success. Everything else
+redirects to `/` for the captive portal.
 
-**GET /api/time Response:**
-```json
-{
-  "success": true,
-  "hours": 14,
-  "minutes": 30,
-  "day": 15,
-  "month": 6,
-  "year": 2024,
-  "weekday": 6,
-  "usingInternalTime": false
-}
-```
+`serveStatic` transparently serves a pre-compressed `<file>.gz`, which is what
+the frontend build produces.
 
-**GET /api/active-hours Response:**
-```json
-{
-  "success": true,
-  "enabled": true,
-  "days": [
-    {"enabled": false, "start": 8, "end": 18},
-    {"enabled": true, "start": 8, "end": 18},
-    ...
-  ]
-}
-```
-
-**GET /api/wakeup-interval Response:**
-```json
-{
-  "success": true,
-  "interval": 30
-}
-```
-
-### websocket.h
-**WebSocket LED Preview** - Real-time LED state streaming to web clients.
-
-**Protocol:**
-
-| Property | Value |
-|----------|-------|
-| **Endpoint** | `/ws/leds` |
-| **Format** | Binary |
-| **Frame Size** | 87 bytes (29 segments × 3 bytes RGB) |
-| **Update Rate** | ~20 FPS (50ms interval) |
-
-**Segment Layout:**
-- Segments 0-27: 4 digits × 7 segments (averaged RGB per segment)
-- Segment 28: Colon (2 LEDs averaged)
-
-| Function | Description |
-|----------|-------------|
-| `setupWebSocket(server)` | Registers WebSocket handler with AsyncWebServer |
-| `loopWebSocket()` | Sends LED updates to connected clients |
-| `sendLedPreview()` | Broadcasts current LED state as binary data |
-
-**Client Usage (JavaScript):**
-```javascript
-const ws = new WebSocket('ws://the-dreaming-clock.local/ws/leds');
-ws.binaryType = 'arraybuffer';
-ws.onmessage = (event) => {
-  const data = new Uint8Array(event.data);
-  // data[segment * 3] = R, data[segment * 3 + 1] = G, data[segment * 3 + 2] = B
-};
-```
-
----
-
-## Web Frontend
-
-### index.html
-Homepage with large SVG button (alarm clock symbol) to "wake up" the clock.
-- Click sends POST to `/wakeup`
-- Link to settings page (`/adjust`)
-
-### settings.html
-Complete settings page with AJAX saving:
-
-**Sections:**
-1. **Set Time** - Hours, minutes, day, month, year
-2. **Active Hours** - Per weekday (Mon-Sun) with start/end time
-3. **Auto Wakeup Interval** - Dropdown with 5/15/30 min, 1-6 hours, off
-4. **Manual Wakeup** - Button for immediate wakeup
-
-**Features:**
-- Each section loads current values on page load
-- Each section has its own save button
-- Visual feedback on success (✓) or error (✗)
-- All requests via `fetch()` API
-
-### style.css
-Modern dark theme with:
-- Gradient background
-- Card-based layout
-- Responsive design
-- Animated buttons
-- Table layout for weekly schedule
-
----
-
-## Flow Diagram
-
-```
-                    ┌─────────────┐
-                    │    BOOT     │
-                    └──────┬──────┘
-                           │
-   ┌───────────────────────┼───────────────────────┐
-   ▼                       ▼                       ▼
-┌────────┐          ┌───────────┐           ┌──────────┐
-│  RTC   │          │ Settings  │           │ Network  │
-│ DS1307 │          │   NVS     │           │  WiFi AP │
-│   or   │          └─────┬─────┘           └────┬─────┘
-│Internal│                │                      │
-└────┬───┘                │                      │
-     │                    │                      │
-     └────────────────────┼──────────────────────┘
-                          ▼
-              ┌───────────────────────┐
-              │                       │
-              ▼                       ▼
-       ┌─────────────┐         ┌─────────────┐
-       │  REST API   │         │  WebSocket  │
-       │  Webserver  │         │ LED Preview │
-       └──────┬──────┘         └──────┬──────┘
-              │                       │
-              └───────────┬───────────┘
-                          ▼
-                   ┌─────────────┐
-                   │    LEDs     │
-                   │  282x APA102│
-                   └──────┬──────┘
-                          │
-        ┌─────────────────┼─────────────────┐
-        ▼                 ▼                 ▼
-   ┌─────────┐      ┌─────────┐       ┌─────────┐
-   │  Time   │      │  Dream  │       │ Wakeup  │
-   │  not    │      │  Mode   │       │  Mode   │
-   │  set    │      │ +Words  │       │ (15s)   │
-   └─────────┘      └─────────┘       └─────────┘
-                          │
-              ┌───────────┼───────────┐
-              ▼           │           ▼
-        ┌──────────┐      │     ┌───────────┐
-        │  Dream   │      │     │Auto-Wakeup│
-        │  Words   │      │     │ (Interval)│
-        │ Fade In/ │      │     └───────────┘
-        │   Out    │      │
-        └──────────┘      │
-              │           │
-              └───────────┘
-```
-
----
-
-## Dependencies (platformio.ini)
-
-| Library | Version | Usage |
-|---------|---------|-------|
-| FastLED | ^3.9.0 | APA102 LED control |
-| ESPAsyncWebServer | GitHub | Async HTTP Server |
-| AsyncTCP | GitHub | TCP for ESP32 |
-| RTClib | ^2.1.4 | DS1307 RTC driver |
-| ArduinoJson | ^7.0.0 | JSON serialization for REST API |
-
----
-
-## Build & Upload
+Example patch:
 
 ```bash
-# Build
-pio run
-
-# Upload via USB
-pio run -t upload
-
-# Upload via OTA
-pio run -t upload --upload-port the-dreaming-clock.local
-
-# Filesystem Upload
-pio run -t uploadfs
+curl -X POST http://the-dreaming-clock.local/api/state \
+  -H 'Content-Type: application/json' \
+  -d '{"brightness": 200, "wakeupInterval": 30, "mode": "dream"}'
 ```
+
+### `ws_preview` — live preview
+
+`/ws/leds`, binary, **846 bytes per frame** (282 LEDs × 3 bytes) at 25 FPS —
+the FastLED buffer sent verbatim. That is ~21 KB/s and *less* ESP work than the
+old per-segment averaging.
+
+Frames are dropped when `availableForWriteAll()` says no. Without that a stalled
+client silently queues up to `WS_MAX_QUEUED_MESSAGES` (32 on ESP32) copies of
+the frame — 27 KB of heap per client at this size.
+
+Accepts the text commands `calibrate on` / `calibrate off`, which walk one lit
+LED along the strip so the physical LED order inside each segment can be read
+off (see below).
+
+---
+
+## Web frontend
+
+Source in `web/`, bundled by esbuild into `data/`, which is **committed** so
+`pio run -t uploadfs` works without a JS toolchain.
+
+```bash
+cd web && npm install && node build.mjs
+```
+
+Deliberately **no framework**. The frontend lives in LittleFS (640 KB, of which
+it uses about 9 KB) — asset size is not a constrained resource here, so a
+framework would cost flash and a toolchain to buy nothing. The preview is canvas
+drawing, which a declarative DOM framework does not help with either.
+
+The build does earn its place: bundling, minifying and pre-gzipping takes the
+shipped payload from 34 KB to ~9 KB, and lets both pages share one API module.
+
+| File | Purpose |
+|------|---------|
+| `web/js/preview.js` | Canvas LED renderer + WebSocket transport |
+| `web/js/api.js` | `/api/state` wrapper |
+| `web/js/index.js` | Home page: preview, wake button, calibration |
+| `web/js/settings.js` | Settings page |
+| `web/geometry.json` | Per-LED (x, y), derived from the segment SVG |
+
+### Calibrating LED order
+
+`geometry.json` says where each LED sits, but the SVG cannot say **which end of
+a bar is LED 0**. Press *Calibrate LED order* on the home page: one LED walks
+the strip while the readout names its segment and position. If a bar fills in
+the opposite direction on screen from the physical clock, add that segment
+number to `REVERSED_SEGMENTS` in `web/js/preview.js` and rebuild.
+
+---
+
+## Dependencies
+
+| Library | Version |
+|---------|---------|
+| FastLED | ^3.10.3 |
+| ESPAsyncWebServer (mathieucarbou) | ^3.6.0 |
+| AsyncTCP (mathieucarbou) | ^3.3.2 |
+| RTClib | ^2.1.4 |
+| Adafruit BusIO | ^1.17.4 |
+| ArduinoJson | ^7.4.2 |
+
+Every one is pinned. Nothing may resolve from the global `~/.platformio/lib`
+store — that is exactly how the old `Timer` dependency stayed invisible until
+someone tried to build on a second machine.
+
+`AsyncCallbackJsonWebHandler` is deliberately **not** used: ESPAsyncWebServer
+does not declare ArduinoJson as a dependency, so its `AsyncJson.cpp` compiles
+itself out via `__has_include` and the handler never links. `web.cpp`
+accumulates the request body itself instead.
+
+---
+
+## Build and flash
+
+```bash
+pio test -e native            # host-side logic tests
+pio run                       # build firmware
+pio run -t upload             # flash over USB
+pio run -t uploadfs           # flash the filesystem
+pio run -t upload --upload-port the-dreaming-clock.local   # OTA
+```
+
+The OTA password comes from the environment:
+
+```bash
+export CLOCK_OTA_PASSWORD='...'
+```
+
+> **The partition table changed.** Moving to `partitions.csv` requires one flash
+> **over USB**; OTA cannot rewrite the partition table. Flash both the firmware
+> and the filesystem that first time. OTA works normally afterwards.
