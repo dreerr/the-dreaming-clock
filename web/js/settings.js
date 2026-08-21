@@ -90,113 +90,6 @@ function selectedEffect() {
 // The segmented control shows which mode the clock is actually in, so it is
 // state rather than three buttons that look identical.
 function renderMode() {
-  // --- message -------------------------------------------------------------
-  // Each effect wants a very different pace: a scroll steps per character, an
-  // appear holds a whole page. One default would be wrong for two of the three.
-  const DEFAULT_STEP = { scroll: 300, appear: 2000, blink: 500 };
-
-  function currentDraft() {
-    // Deliberately not trimmed: leading and trailing spaces are blanks on the
-    // display and someone typing "   2" means to see them.
-    return {
-      text: $("msg-text").value,
-      effect: selectedEffect(),
-      fill: $("msg-fill").value,
-      hue: Number($("msg-hue").value),
-      stepMs: Number($("msg-step").value),
-      crossfade: $("msg-crossfade").checked,
-    };
-  }
-
-  function hueCss(hue) {
-    return `hsl(${Math.round((hue / 255) * 360)}, 100%, 50%)`;
-  }
-
-  function renderSwatch() {
-    $("msg-swatch").style.background = hueCss(Number($("msg-hue").value));
-  }
-
-  function renderChain() {
-    const list = $("msg-chain");
-    list.hidden = chain.length === 0;
-    list.innerHTML = "";
-    chain.forEach((m, index) => {
-      const li = document.createElement("li");
-      li.innerHTML = `
-        <span class="step-no">${index + 1}</span>
-        <span class="chain-dot" style="background:${hueCss(m.hue)}"></span>
-        <span class="chain-text">${m.text.replace(/ /g, "\u00b7")}</span>
-        <span>${m.effect} · ${m.stepMs}ms</span>
-        <button type="button" aria-label="Remove">×</button>`;
-      li.querySelector("button").addEventListener("click", () => {
-        chain.splice(index, 1);
-        renderChain();
-      });
-      list.append(li);
-    });
-    $("msg-send").textContent = chain.length ? `Send ${chain.length}` : "Send";
-  }
-
-  for (const button of document.querySelectorAll("#msg-effect [data-effect]")) {
-    button.addEventListener("click", () => {
-      for (const other of document.querySelectorAll("#msg-effect [data-effect]")) {
-        other.setAttribute("aria-pressed", String(other === button));
-      }
-      const step = DEFAULT_STEP[button.dataset.effect];
-      $("msg-step").value = String(step);
-      $("msg-step-value").textContent = String(step);
-    });
-  }
-
-  $("msg-step").addEventListener("input", (e) => {
-    $("msg-step-value").textContent = e.target.value;
-  });
-  $("msg-hue").addEventListener("input", renderSwatch);
-  renderSwatch();
-
-  $("msg-add").addEventListener("click", () => {
-    const draft = currentDraft();
-    if (!draft.text) {
-      showStatus("msg-status", false, "nothing to say");
-      return;
-    }
-    chain.push(draft);
-    renderChain();
-    $("msg-text").value = "";
-    $("msg-text").focus();
-  });
-
-  $("msg-send").addEventListener(
-    "click",
-    saveHandler("msg-status", async () => {
-      const draft = currentDraft();
-      const toSend = chain.slice();
-      if (draft.text) toSend.push(draft);
-      if (!toSend.length) throw new Error("nothing to say");
-
-      const result = await sendMessage(toSend.length === 1 ? toSend[0] : toSend);
-      chain.length = 0;
-      renderChain();
-      $("msg-clear").hidden = false;
-
-      const blanks = result.unrenderable || [];
-      return {
-        message: blanks.length
-          ? `sent — ${blanks.join(" ")} cannot be drawn`
-          : `sent ${toSend.length > 1 ? toSend.length + " messages" : ""}`.trim(),
-      };
-    }),
-  );
-
-  $("msg-clear").addEventListener(
-    "click",
-    saveHandler("msg-status", async () => {
-      await clearMessages();
-      $("msg-clear").hidden = true;
-      return { message: "stopped" };
-    }),
-  );
-
   for (const button of document.querySelectorAll("[data-mode]")) {
     button.setAttribute(
       "aria-pressed",
@@ -334,7 +227,7 @@ export function initSettingsPanel() {
 
   function currentDraft() {
     // Deliberately not trimmed: leading and trailing spaces are blanks on the
-    // display and someone typing "   2" means to see them.
+    // display, and someone typing "   2" means to see them.
     return {
       text: $("msg-text").value,
       effect: selectedEffect(),
@@ -363,8 +256,8 @@ export function initSettingsPanel() {
         <span class="step-no">${index + 1}</span>
         <span class="chain-dot" style="background:${hueCss(m.hue)}"></span>
         <span class="chain-text">${m.text.replace(/ /g, "\u00b7")}</span>
-        <span>${m.effect} · ${m.stepMs}ms</span>
-        <button type="button" aria-label="Remove">×</button>`;
+        <span>${m.effect} \u00b7 ${m.stepMs}ms</span>
+        <button type="button" aria-label="Remove">\u00d7</button>`;
       li.querySelector("button").addEventListener("click", () => {
         chain.splice(index, 1);
         renderChain();
@@ -412,16 +305,14 @@ export function initSettingsPanel() {
       if (!toSend.length) throw new Error("nothing to say");
 
       const result = await sendMessage(toSend.length === 1 ? toSend[0] : toSend);
-      chain.length = 0;
-      renderChain();
+      // The chain is kept so it can be sent again without rebuilding it.
       $("msg-clear").hidden = false;
 
       const blanks = result.unrenderable || [];
-      return {
-        message: blanks.length
-          ? `sent — ${blanks.join(" ")} cannot be drawn`
-          : `sent ${toSend.length > 1 ? toSend.length + " messages" : ""}`.trim(),
-      };
+      if (blanks.length) {
+        return { message: `sent \u2014 ${blanks.join(" ")} cannot be drawn` };
+      }
+      return { message: toSend.length > 1 ? `sent ${toSend.length}` : "sent" };
     }),
   );
 
@@ -433,6 +324,7 @@ export function initSettingsPanel() {
       return { message: "stopped" };
     }),
   );
+
 
   for (const button of document.querySelectorAll("[data-mode]")) {
     button.addEventListener(
