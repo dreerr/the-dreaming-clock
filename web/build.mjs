@@ -62,6 +62,17 @@ for (const name of readdirSync(out)) {
     continue; // not worth a second file
   }
   const gz = gzipSync(data, { level: constants.Z_BEST_COMPRESSION });
+
+  // Byte 9 of the gzip header is the OS field, and zlib fills it in from the
+  // machine that ran the build: 3 on Linux, 19 on macOS (zlib 1.2.12 gave
+  // Darwin its own code). The deflate stream either side of it is identical,
+  // so a macOS build and a Linux build of the same input differ by exactly
+  // three bytes across data/ — which is enough for CI's `git diff --exit-code`
+  // to call the committed output stale on every single macOS commit. Pin it to
+  // 3 so the artefacts are reproducible wherever they were built. The other
+  // varying header field, MTIME, is already zero: Node never sets it.
+  gz[9] = 3;
+
   writeFileSync(`${path}.gz`, gz);
   rmSync(path); // serveStatic finds the .gz on its own
   compressed += gz.length;
