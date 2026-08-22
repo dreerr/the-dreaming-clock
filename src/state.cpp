@@ -249,6 +249,7 @@ void serializeState(JsonObject out) {
   network["fallback"] = networkSettings.fallbackToCaptive;
   network["connected"] = networkConnected();
   network["ip"] = networkAddress();
+  network["rssi"] = networkRssi();
 }
 
 namespace {

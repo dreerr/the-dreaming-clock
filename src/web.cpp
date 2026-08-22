@@ -145,6 +145,18 @@ void registerRoutes() {
     sendJson(request, 200, doc);
   });
 
+  // --- icons Safari asks for and this device does not have ------------------
+  // Registered before serveStatic so they win the handler search. Without them
+  // every one of these probes costs four failed LittleFS opens inside the
+  // AsyncTCP task and then a 302 to "/", which hands Safari an HTML document
+  // where it asked for a PNG. A plain 404 is both cheaper and truthful.
+  for (const char *icon : {"/favicon.ico", "/apple-touch-icon.png",
+                           "/apple-touch-icon-precomposed.png"}) {
+    server.on(icon, HTTP_GET, [](AsyncWebServerRequest *request) {
+      request->send(404);
+    });
+  }
+
   // --- static files --------------------------------------------------------
   // serveStatic (unlike request->send) transparently serves a pre-compressed
   // "<file>.gz" with Content-Encoding: gzip, which is what the frontend build
