@@ -13,3 +13,5 @@ node_modules/
 
 # Local secrets (OTA password etc.) — see README
 .env
+
+.claude_session
